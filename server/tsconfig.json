@@ -1,0 +1,24 @@
+// server/tsconfig.json
+{
+	"compilerOptions": {
+		"target": "ES2016", // Or newer
+		"module": "CommonJS",
+		"outDir": "./dist",
+		"rootDir": "./src",
+		"strict": true,
+		"esModuleInterop": true,
+		"skipLibCheck": true,
+		"forceConsistentCasingInFileNames": true,
+		"resolveJsonModule": true, // Important for importing JSON if needed
+		"moduleResolution": "node", // Ensure Node.js module resolution
+		"baseUrl": "./src", // Allows imports relative to src
+		"paths": {
+			// Optional: Define path aliases
+			"@services/*": ["services/*"],
+			"@routes/*": ["routes/*"],
+			"@utils/*": ["src/utils/*"]
+		}
+	},
+	"include": ["src/**/*", "src/utils"],
+	"exclude": ["node_modules"]
+}

@@ -1,8 +1,5 @@
 // server/src/utils/supabaseClient.ts
 import { createClient } from "@supabase/supabase-js";
-import dotenv from "dotenv";
-
-dotenv.config({ path: "../../.env" }); // Adjust path if .env is elsewhere relative to execution
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;

@@ -1,8 +1,5 @@
 // server/src/services/imageService.ts
 import axios from "axios";
-import dotenv from "dotenv";
-
-dotenv.config({ path: "../../.env" });
 
 const UNSPLASH_API_URL = "https://api.unsplash.com/search/photos";
 const ACCESS_KEY = process.env.UNSPLASH_ACCESS_KEY;

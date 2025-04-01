@@ -51,14 +51,19 @@ router.post("/save", (async (req: Request, res: Response) => {
 }) as RequestHandler);
 
 // GET /api/content/saved
+// GET /api/content/saved
 router.get("/saved", (async (req: Request, res: Response) => {
 	try {
 		const drafts = await getSavedDrafts();
+
+		// Add cache control headers to reduce frequent requests
+		res.set("Cache-Control", "public, max-age=10"); // Cache for 10 seconds
+		res.set("ETag", JSON.stringify(drafts).length.toString()); // Simple ETag
+
 		res.json({ drafts });
 	} catch (error: any) {
 		console.error("Error in /saved route:", error);
 		res.status(500).json({ error: error.message || "Failed to retrieve saved drafts." });
 	}
 }) as RequestHandler);
-
 export default router;

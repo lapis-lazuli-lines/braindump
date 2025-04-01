@@ -1,31 +1,26 @@
 // server/src/server.ts
-import dotenv from "dotenv";
-// Load env vars relative to the server's root (where package.json is)
-dotenv.config({ path: "../.env" }); // Adjust if your .env is elsewhere
-
+import "./utils/envConfig"; // Load environment variables first
 import express, { Express, Request, Response, NextFunction } from "express";
 import cors from "cors";
 import path from "path";
-import contentRoutes from "./routes/contentRoutes"; // Using path aliases
+import contentRoutes from "./routes/contentRoutes";
 import imageRoutes from "./routes/imageRoutes";
-import { supabase } from "./utils/supabaseClient"; // Import to initialize early
+import { supabase } from "./utils/supabaseClient";
 
 const app: Express = express();
 const PORT = process.env.PORT || 3001;
 
 // --- Middleware ---
-// More specific CORS for production is recommended
-app.use(cors()); // Allow requests from your React app's origin in production
-app.use(express.json()); // Parse JSON bodies
+app.use(cors());
+app.use(express.json());
 
 // --- API Routes ---
 app.use("/api/content", contentRoutes);
 app.use("/api/images", imageRoutes);
 
 // --- Serve React App in Production ---
-// Ensure this runs only after `npm run build` in the client folder
 if (process.env.NODE_ENV === "production") {
-	const clientBuildPath = path.join(__dirname, "../../client/dist"); // Adjust path based on build output
+	const clientBuildPath = path.join(__dirname, "../../client/dist");
 	console.log(`Serving static files from: ${clientBuildPath}`);
 	app.use(express.static(clientBuildPath));
 
@@ -39,7 +34,7 @@ if (process.env.NODE_ENV === "production") {
 	});
 }
 
-// --- Basic Error Handling Middleware (Add more specific handlers as needed) ---
+// --- Basic Error Handling Middleware ---
 app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
 	console.error("Unhandled Error:", err.stack);
 	res.status(500).json({ error: "Something went wrong on the server!" });

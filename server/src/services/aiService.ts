@@ -1,11 +1,5 @@
 // server/src/services/aiService.ts
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import path from "path";
-import dotenv from "dotenv";
-
-// Use absolute path to ensure .env is loaded correctly
-const envPath = path.resolve(__dirname, "../../.env");
-dotenv.config({ path: envPath });
 
 const googleApiKey = process.env.GOOGLE_API_KEY;
 

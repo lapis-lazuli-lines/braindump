@@ -10,9 +10,11 @@ interface ChatItem {
 interface SidebarProps {
 	visible: boolean;
 	onNewChat?: () => void;
+	onContentCreator?: () => void;
+	currentScreen?: string;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ visible, onNewChat }) => {
+const Sidebar: React.FC<SidebarProps> = ({ visible, onNewChat, onContentCreator, currentScreen }) => {
 	// Sample chat history
 	const recentChats: ChatItem[] = [
 		{ id: 1, title: "What is the best gift for a gamer?", date: "today" },
@@ -22,13 +24,29 @@ const Sidebar: React.FC<SidebarProps> = ({ visible, onNewChat }) => {
 
 	return (
 		<div className={`${visible ? "block" : "hidden"} md:block w-64 bg-[#2e0e4b] flex-shrink-0 flex flex-col z-20`}>
-			{/* New Chat Button */}
-			<div className="p-4">
+			{/* Action Buttons */}
+			<div className="p-4 space-y-3">
+				{/* New Chat Button */}
 				<button
 					onClick={onNewChat}
-					className="w-full flex items-center justify-center gap-2 bg-[#5a2783] hover:bg-[#6b2f9c] text-white py-3 px-4 rounded-full transition-colors">
+					className={`w-full flex items-center justify-center gap-2 py-3 px-4 rounded-full transition-colors ${
+						currentScreen === "chat" ? "bg-[#6b2f9c] text-white" : "bg-[#5a2783] hover:bg-[#6b2f9c] text-white"
+					}`}>
 					<span className="text-xl font-medium">+</span>
 					<span>New Chat</span>
+				</button>
+
+				{/* Content Creator Button */}
+				<button
+					onClick={onContentCreator}
+					className={`w-full flex items-center justify-center gap-2 py-3 px-4 rounded-full transition-colors ${
+						currentScreen === "content" ? "bg-[#6b2f9c] text-white" : "bg-[#5a2783] hover:bg-[#6b2f9c] text-white"
+					}`}>
+					<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+						<path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z" />
+						<path fillRule="evenodd" d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clipRule="evenodd" />
+					</svg>
+					<span>Content Creator</span>
 				</button>
 			</div>
 

@@ -6,11 +6,14 @@ import Loading from "../components/common/Loading";
 import { formatDate } from "../utils/formatting";
 
 const SavedContentPage = () => {
-	const { savedDrafts, loadSavedDrafts, selectDraft, isLoading, error } = useContent();
+	const { savedDrafts, loadSavedDrafts, selectDraft, isLoading, error, draftsLoaded } = useContent();
 
 	useEffect(() => {
-		loadSavedDrafts();
-	}, [loadSavedDrafts]);
+		// Only load drafts if they haven't been loaded already
+		if (!draftsLoaded) {
+			loadSavedDrafts();
+		}
+	}, [draftsLoaded, loadSavedDrafts]);
 
 	const handleOpenDraft = (draft: ContentDraft) => {
 		selectDraft(draft);
@@ -18,7 +21,11 @@ const SavedContentPage = () => {
 		window.location.href = "/create";
 	};
 
-	if (isLoading) {
+	const handleRefresh = () => {
+		loadSavedDrafts(true); // Force refresh
+	};
+
+	if (isLoading && !draftsLoaded) {
 		return (
 			<div className="flex justify-center items-center h-64">
 				<Loading message="Loading your saved content..." />
@@ -30,7 +37,7 @@ const SavedContentPage = () => {
 		return (
 			<div className="bg-red-900/30 p-6 rounded-lg text-center">
 				<p className="text-red-300">{error}</p>
-				<button onClick={() => loadSavedDrafts()} className="mt-4 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors">
+				<button onClick={handleRefresh} className="mt-4 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors">
 					Try Again
 				</button>
 			</div>
@@ -65,9 +72,14 @@ const SavedContentPage = () => {
 					<h1 className="text-3xl font-bold">Saved Content</h1>
 					<p className="text-purple-200 mt-2">Access and manage your saved drafts.</p>
 				</div>
-				<Link to="/create" className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors">
-					Create New
-				</Link>
+				<div className="flex space-x-2">
+					<button onClick={handleRefresh} className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-colors">
+						Refresh
+					</button>
+					<Link to="/create" className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors">
+						Create New
+					</Link>
+				</div>
 			</header>
 
 			{/* Content List */}

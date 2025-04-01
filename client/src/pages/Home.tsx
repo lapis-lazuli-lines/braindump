@@ -54,7 +54,7 @@ const HomePage = () => {
 							<path fillRule="evenodd" d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clipRule="evenodd" />
 						</svg>
 					</div>
-					<h1 className="text-4xl font-bold mb-4">ContentCraft</h1>
+					<h1 className="text-4xl font-bold mb-4">BrainDump</h1>
 					<p className="text-xl text-purple-200 mb-8">Create engaging content with AI assistance. Generate ideas, draft content, and find perfect images.</p>
 					<Link
 						to="/create"

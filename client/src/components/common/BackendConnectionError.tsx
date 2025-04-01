@@ -1,4 +1,5 @@
 import React from "react";
+import theme from "../../styles/theme"; // Import the theme
 
 interface BackendConnectionErrorProps {
 	message?: string;
@@ -7,8 +8,8 @@ interface BackendConnectionErrorProps {
 
 const BackendConnectionError: React.FC<BackendConnectionErrorProps> = ({ message = "Cannot connect to the server", onRetry }) => {
 	return (
-		<div className="bg-indigo-900/30 backdrop-blur-sm rounded-xl p-6 border border-purple-800/30 shadow-lg text-center">
-			<svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 mx-auto text-amber-500 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+		<div className={theme.getThemeClasses.card("hover")}>
+			<svg xmlns="http://www.w3.org/2000/svg" className={`h-16 w-16 mx-auto text-${theme.colors.status.warning} mb-4`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
 				<path
 					strokeLinecap="round"
 					strokeLinejoin="round"
@@ -17,11 +18,11 @@ const BackendConnectionError: React.FC<BackendConnectionErrorProps> = ({ message
 				/>
 			</svg>
 
-			<h3 className="text-xl font-medium mb-2">Backend Connection Error</h3>
-			<p className="text-purple-200 mb-6">{message}</p>
+			<h3 className={`${theme.typography.heading.h3} mb-2`}>Backend Connection Error</h3>
+			<p className={`text-${theme.colors.text.secondary} mb-6`}>{message}</p>
 
 			<div className="space-y-4">
-				<div className="bg-indigo-950/70 rounded-lg p-4 text-left text-sm text-purple-300">
+				<div className={`bg-${theme.colors.background.DEFAULT} rounded-lg p-4 text-left text-sm text-${theme.colors.text.muted}`}>
 					<p className="font-medium mb-2">Possible solutions:</p>
 					<ul className="list-disc pl-5 space-y-1">
 						<li>Make sure the backend server is running</li>
@@ -31,7 +32,7 @@ const BackendConnectionError: React.FC<BackendConnectionErrorProps> = ({ message
 				</div>
 
 				{onRetry && (
-					<button onClick={onRetry} className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors">
+					<button onClick={onRetry} className={theme.getThemeClasses.button("primary")}>
 						Retry Connection
 					</button>
 				)}

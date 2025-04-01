@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, ReactNode } from "react";
+import { createContext, useContext, useState, ReactNode, useCallback } from "react";
 import { ContentDraft } from "../types";
 import useContentApi from "../hooks/useContentApi";
 
@@ -10,6 +10,7 @@ interface ContentContextType {
 	savedDrafts: ContentDraft[];
 	isLoading: boolean;
 	error: string | null;
+	draftsLoaded: boolean; // New state to track if drafts have been loaded
 
 	// Actions
 	setCurrentPrompt: (prompt: string) => void;
@@ -17,7 +18,7 @@ interface ContentContextType {
 	generateContentIdeas: (topic: string) => Promise<void>;
 	generateDraft: (prompt: string) => Promise<void>;
 	saveDraft: () => Promise<void>;
-	loadSavedDrafts: () => Promise<void>;
+	loadSavedDrafts: (forceRefresh?: boolean) => Promise<void>;
 	selectDraft: (draft: ContentDraft) => void;
 	clearCurrentDraft: () => void;
 }
@@ -30,6 +31,7 @@ export const ContentProvider = ({ children }: { children: ReactNode }) => {
 	const [currentDraft, setCurrentDraft] = useState("");
 	const [currentPrompt, setCurrentPrompt] = useState("");
 	const [savedDrafts, setSavedDrafts] = useState<ContentDraft[]>([]);
+	const [draftsLoaded, setDraftsLoaded] = useState(false); // New state to track if drafts have been loaded
 
 	// API hooks - using the hook that imports API functions properly
 	const { generateIdeas, generateDraft: apiGenerateDraft, saveDraft: apiSaveDraft, getSavedDrafts, isLoading, error } = useContentApi();
@@ -54,14 +56,22 @@ export const ContentProvider = ({ children }: { children: ReactNode }) => {
 		const savedDraft = await apiSaveDraft(currentPrompt, currentDraft);
 		if (savedDraft) {
 			setSavedDrafts((prev) => [savedDraft, ...prev]);
+			setDraftsLoaded(true); // Mark as loaded after saving
 		}
 	};
 
-	// Load saved drafts
-	const loadSavedDrafts = async () => {
-		const drafts = await getSavedDrafts();
-		setSavedDrafts(drafts);
-	};
+	// Load saved drafts only if they haven't been loaded yet or force refresh
+	const loadSavedDrafts = useCallback(
+		async (forceRefresh = false) => {
+			// Skip loading if already loaded and no force refresh
+			if (draftsLoaded && !forceRefresh) return;
+
+			const drafts = await getSavedDrafts();
+			setSavedDrafts(drafts);
+			setDraftsLoaded(true); // Mark as loaded after fetching
+		},
+		[getSavedDrafts, draftsLoaded]
+	);
 
 	// Select a draft for editing
 	const selectDraft = (draft: ContentDraft) => {
@@ -82,6 +92,7 @@ export const ContentProvider = ({ children }: { children: ReactNode }) => {
 		savedDrafts,
 		isLoading,
 		error,
+		draftsLoaded,
 		setCurrentPrompt,
 		setCurrentDraft,
 		generateContentIdeas,

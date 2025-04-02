@@ -1,4 +1,3 @@
-// tailwind.config.js
 /** @type {import('tailwindcss').Config} */
 export default {
 	content: ["./index.html", "./src/**/*.{js,ts,jsx,tsx}"],
@@ -20,7 +19,41 @@ export default {
 				"3xl": "1.5rem",
 				"4xl": "2rem",
 			},
+			typography: (theme) => ({
+				DEFAULT: {
+					css: {
+						a: {
+							color: theme("colors.wavee.primary"),
+							"&:hover": {
+								color: theme("colors.pink.600"),
+							},
+						},
+						h1: {
+							color: theme("colors.gray.800"),
+						},
+						h2: {
+							color: theme("colors.gray.800"),
+						},
+						h3: {
+							color: theme("colors.gray.800"),
+						},
+					},
+				},
+			}),
+			animation: {
+				"pulse-slow": "pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite",
+				"bounce-slow": "bounce 3s infinite",
+			},
 		},
 	},
-	plugins: [],
+	plugins: [
+		require("@tailwindcss/typography"),
+		require("@tailwindcss/forms")({
+			strategy: "class",
+		}),
+	],
+	// Add focus-visible polyfill for keyboard focus styles
+	future: {
+		hoverOnlyWhenSupported: true,
+	},
 };

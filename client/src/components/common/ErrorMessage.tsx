@@ -1,4 +1,4 @@
-// src/components/common/ErrorMessage.tsx
+// client/src/components/common/ErrorMessage.tsx
 import React from "react";
 
 interface ErrorMessageProps {
@@ -10,7 +10,7 @@ const ErrorMessage: React.FC<ErrorMessageProps> = ({ message, className = "" }) 
 	if (!message) return null;
 
 	return (
-		<div className={`p-3 bg-red-100 text-red-700 rounded-lg text-sm ${className}`}>
+		<div className={`p-3 bg-red-100 text-red-700 rounded-lg text-sm ${className}`} role="alert">
 			<div className="flex items-start">
 				<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
 					<path

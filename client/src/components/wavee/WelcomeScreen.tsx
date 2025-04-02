@@ -1,5 +1,7 @@
-// src/components/wavee/WelcomeScreen.tsx
+// client/src/components/wavee/WelcomeScreen.tsx
 import React from "react";
+import Logo from "@/components/common/Logo";
+import { useAuthContext } from "@/contexts/AuthContext";
 
 interface Prompt {
 	id: number;
@@ -13,11 +15,13 @@ interface WelcomeScreenProps {
 }
 
 const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onPromptClick, onStartNewChat, onOpenContentCreator }) => {
-	// Sample daily prompts
+	const { userFullName } = useAuthContext();
+
+	// Sample daily prompts - these would ideally come from the backend
 	const dailyPrompts: Prompt[] = [
-		{ id: 1, title: "What is the best gift for a gamer?" },
-		{ id: 2, title: "How to build a PC?" },
-		{ id: 3, title: "How to make money from gaming?" },
+		{ id: 1, title: "What are the latest trends in content marketing?" },
+		{ id: 2, title: "How can I optimize my social media strategy?" },
+		{ id: 3, title: "What are effective ways to engage my audience?" },
 	];
 
 	const handlePromptClick = (prompt: string) => {
@@ -31,20 +35,19 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onPromptClick, onStartNew
 			<div className="max-w-4xl mx-auto">
 				{/* WaveeAI Logo */}
 				<div className="flex justify-center mb-6">
-					<div className="h-16 w-16 rounded-full bg-pink-100 flex items-center justify-center">
-						<span className="text-3xl font-bold text-[#e03885]">W</span>
-					</div>
+					<Logo size="xl" />
 				</div>
 
-				{/* Headline */}
-				<h1 className="text-3xl font-bold text-center mb-4">Experience seamless chatbot interaction with WaveeAI.</h1>
-				<p className="text-gray-500 text-center mb-12">Get instant answers, helpful recommendations, and engaging conversations with our advanced AI-powered app.</p>
+				{/* Headline with personalized greeting */}
+				<h1 className="text-3xl font-bold text-center mb-4">{userFullName ? `Welcome back, ${userFullName.split(" ")[0]}!` : "Welcome to WaveeAI"}</h1>
+				<p className="text-gray-500 text-center mb-12">Get instant answers, helpful recommendations, and create engaging content with our advanced AI-powered app.</p>
 
 				{/* Action Buttons */}
-				<div className="flex justify-center gap-4 mb-12">
+				<div className="flex flex-wrap justify-center gap-4 mb-12">
 					<button
 						onClick={onStartNewChat}
-						className="px-6 py-3 rounded-full bg-[#5a2783] hover:bg-[#6b2f9c] text-white flex items-center justify-center gap-2 transition-colors">
+						className="px-6 py-3 rounded-full bg-[#5a2783] hover:bg-[#6b2f9c] text-white flex items-center justify-center gap-2 transition-colors"
+						aria-label="Start new chat">
 						<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
 							<path
 								fillRule="evenodd"
@@ -57,7 +60,8 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onPromptClick, onStartNew
 
 					<button
 						onClick={onOpenContentCreator}
-						className="px-6 py-3 rounded-full bg-[#e03885] hover:bg-pink-600 text-white flex items-center justify-center gap-2 transition-colors">
+						className="px-6 py-3 rounded-full bg-[#e03885] hover:bg-pink-600 text-white flex items-center justify-center gap-2 transition-colors"
+						aria-label="Open content creator">
 						<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
 							<path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z" />
 							<path fillRule="evenodd" d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clipRule="evenodd" />
@@ -80,14 +84,22 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onPromptClick, onStartNew
 									/>
 								</svg>
 							</div>
-							<h2 className="text-lg font-semibold">Daily prompt example</h2>
+							<h2 className="text-lg font-semibold">Daily prompt examples</h2>
 						</div>
 						<div className="space-y-3">
 							{dailyPrompts.map((prompt) => (
 								<div
 									key={prompt.id}
 									className="flex items-center justify-between p-3 border border-gray-100 rounded-lg group hover:bg-gray-50 cursor-pointer"
-									onClick={() => handlePromptClick(prompt.title)}>
+									onClick={() => handlePromptClick(prompt.title)}
+									tabIndex={0}
+									role="button"
+									aria-label={`Use prompt: ${prompt.title}`}
+									onKeyDown={(e) => {
+										if (e.key === "Enter" || e.key === " ") {
+											handlePromptClick(prompt.title);
+										}
+									}}>
 									<p className="text-sm text-gray-700">"{prompt.title}"</p>
 									<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-400 group-hover:text-gray-600" viewBox="0 0 20 20" fill="currentColor">
 										<path
@@ -136,16 +148,16 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onPromptClick, onStartNew
 						</div>
 						<div className="space-y-3">
 							<div className="p-3 border border-gray-100 rounded-lg">
-								<p className="text-sm text-gray-700 font-medium">Content Creator Tool</p>
-								<p className="text-xs text-gray-500 mt-1">Generate and save content ideas and drafts</p>
+								<p className="text-sm text-gray-700 font-medium">Social Media Integration</p>
+								<p className="text-xs text-gray-500 mt-1">Tailor content for specific platforms</p>
 							</div>
 							<div className="p-3 border border-gray-100 rounded-lg">
-								<p className="text-sm text-gray-700 font-medium">Enhanced Chat Experience</p>
-								<p className="text-xs text-gray-500 mt-1">More natural conversations and better responses</p>
+								<p className="text-sm text-gray-700 font-medium">Image Selection</p>
+								<p className="text-xs text-gray-500 mt-1">Add images to your content from Unsplash</p>
 							</div>
 							<div className="p-3 border border-gray-100 rounded-lg">
-								<p className="text-sm text-gray-700 font-medium">API Integration</p>
-								<p className="text-xs text-gray-500 mt-1">Connect seamlessly with our backend services</p>
+								<p className="text-sm text-gray-700 font-medium">Performance Enhancements</p>
+								<p className="text-xs text-gray-500 mt-1">Faster responses and smoother experience</p>
 							</div>
 						</div>
 					</div>
@@ -155,4 +167,4 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onPromptClick, onStartNew
 	);
 };
 
-export default WelcomeScreen;
+export default React.memo(WelcomeScreen);

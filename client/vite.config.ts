@@ -1,3 +1,4 @@
+// client/vite.config.ts
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import path from "path";
@@ -51,5 +52,36 @@ export default defineConfig({
 		hmr: {
 			overlay: true,
 		},
+	},
+	build: {
+		// Enable production optimizations
+		minify: "terser",
+		terserOptions: {
+			compress: {
+				drop_console: true, // Remove console logs in production
+				drop_debugger: true, // Remove debugger statements in production
+			},
+		},
+		// Split chunks for better caching
+		rollupOptions: {
+			output: {
+				manualChunks: {
+					react: ["react", "react-dom"],
+					clerk: ["@clerk/clerk-react"],
+					router: ["react-router-dom"],
+					ui: ["react-markdown", "react-hook-form"],
+				},
+			},
+		},
+		// Enable source maps for debugging production issues
+		sourcemap: true,
+		// Improve chunk loading with preload directives
+		modulePreload: {
+			polyfill: true,
+		},
+	},
+	define: {
+		// Make environment variables available in the client app
+		"process.env.NODE_ENV": JSON.stringify(process.env.NODE_ENV),
 	},
 });

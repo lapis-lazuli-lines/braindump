@@ -42,7 +42,7 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage }) => {
 					value={message}
 					onChange={(e) => setMessage(e.target.value)}
 					placeholder="Start typing"
-					className="w-full px-4 py-2 bg-gray-100 border border-gray-100 rounded-full focus:outline-none focus:border-purple-300 focus:ring-1 focus:ring-purple-300"
+					className="w-full px-4 py-2 bg-gray-100 border border-gray-100 rounded-full text-gray-800 focus:outline-none focus:border-purple-300 focus:ring-1 focus:ring-purple-300"
 				/>
 			</div>
 			<button type="submit" className="p-2 rounded-full bg-[#e03885] text-white hover:bg-pink-600" disabled={!message.trim()}>

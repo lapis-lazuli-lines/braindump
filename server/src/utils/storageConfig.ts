@@ -1,5 +1,5 @@
 // server/src/utils/storageConfig.ts
-import { supabase } from "./supabaseClient";
+import { supabaseAdmin as supabase } from "./supabaseClient";
 
 /**
  * Configuration for media storage buckets in Supabase
@@ -20,81 +20,84 @@ export const ALLOWED_MIME_TYPES = [
 	"video/mp4",
 	"video/webm",
 	"video/ogg",
-	// Other
+	// Documents
 	"application/pdf",
+	"application/msword",
+	"application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 ];
 
-// Maximum file size (5MB)
-export const MAX_FILE_SIZE = 5 * 1024 * 1024;
+// Maximum file size (10MB)
+export const MAX_FILE_SIZE = 10 * 1024 * 1024;
+
+// Track if we've already logged bucket errors to prevent spam
+let bucketErrorLogged = false;
 
 /**
- * Initializes the required storage buckets if they don't exist
- * Note: This may require manual bucket creation in the Supabase dashboard
- * due to Row-Level Security policies.
+ * Initializes storage configuration and verifies the bucket exists
  */
-export const initializeStorage = async (): Promise<void> => {
+export const initializeStorage = async (): Promise<boolean> => {
 	try {
+		console.log("🔍 Checking Supabase Storage Configuration");
+
 		// Check if the media bucket exists
 		const { data: buckets, error: listError } = await supabase.storage.listBuckets();
 
 		if (listError) {
-			console.error("Error listing buckets:", listError);
-			console.log("You may need to manually create the bucket in Supabase dashboard.");
-			return;
+			console.error("❌ Error accessing Supabase storage:", listError);
+			console.log("Likely causes:");
+			console.log("1. Incorrect Supabase credentials");
+			console.log("2. Network connectivity issues");
+			console.log("3. Supabase service might be down");
+			return false;
 		}
 
-		// Check if the bucket already exists
-		const bucketExists = buckets.find((bucket) => bucket.name === MEDIA_BUCKET);
+		// Check if the bucket exists
+		const bucketExists = buckets.some((bucket) => bucket.name === MEDIA_BUCKET);
 
 		if (bucketExists) {
-			console.log(`Bucket already exists: ${MEDIA_BUCKET}`);
+			console.log(`✅ Storage bucket found: ${MEDIA_BUCKET}`);
 
-			// Update bucket policies if needed
+			// Test bucket access with admin client
 			try {
-				const { error: updateError } = await supabase.storage.updateBucket(MEDIA_BUCKET, {
-					public: false,
-					fileSizeLimit: MAX_FILE_SIZE,
-					allowedMimeTypes: ALLOWED_MIME_TYPES,
-				});
+				const { data: files, error: listFilesError } = await supabase.storage.from(MEDIA_BUCKET).list();
 
-				if (updateError) {
-					console.warn(`Warning: Could not update bucket ${MEDIA_BUCKET} settings:`, updateError);
-					console.log("You may need to update bucket settings manually in Supabase dashboard.");
-				} else {
-					console.log("Storage bucket settings updated successfully");
+				if (listFilesError) {
+					console.error("❌ Error listing bucket contents:", listFilesError);
+					console.log("This may be a permissions issue even with service role");
+					return false;
 				}
-			} catch (updateErr) {
-				console.warn("Failed to update bucket settings (may require manual update):", updateErr);
+
+				console.log(`✅ Successfully accessed bucket. Found ${files.length} files/folders.`);
+				return true;
+			} catch (accessError) {
+				console.error("❌ Error accessing bucket contents:", accessError);
+				return false;
 			}
 		} else {
-			// Attempt to create the bucket, but this may fail due to RLS policies
-			console.log(`Attempting to create storage bucket: ${MEDIA_BUCKET}`);
+			console.warn(`⚠️ Storage bucket "${MEDIA_BUCKET}" not found`);
 
+			// Try to create the bucket with admin client
 			try {
-				const { error: createError } = await supabase.storage.createBucket(MEDIA_BUCKET, {
+				const { data: newBucket, error: createError } = await supabase.storage.createBucket(MEDIA_BUCKET, {
 					public: false,
 					fileSizeLimit: MAX_FILE_SIZE,
-					allowedMimeTypes: ALLOWED_MIME_TYPES,
 				});
 
 				if (createError) {
-					console.warn(`Warning: Could not create bucket ${MEDIA_BUCKET}:`, createError);
-					console.log("Please create the storage bucket manually in the Supabase dashboard:");
-					console.log("1. Go to https://app.supabase.com and open your project");
-					console.log("2. Navigate to Storage in the left sidebar");
-					console.log(`3. Create a new bucket named "${MEDIA_BUCKET}"`);
-					console.log("4. Set appropriate permissions (private recommended)");
-				} else {
-					console.log(`Successfully created bucket: ${MEDIA_BUCKET}`);
+					console.error("❌ Error creating bucket:", createError);
+					return false;
 				}
-			} catch (createErr) {
-				console.warn("Failed to create bucket (requires manual creation):", createErr);
-				console.log("Please create the bucket manually in the Supabase dashboard.");
+
+				console.log(`✅ Successfully created bucket: ${MEDIA_BUCKET}`);
+				return true;
+			} catch (createError) {
+				console.error("❌ Error creating bucket:", createError);
+				return false;
 			}
 		}
 	} catch (error) {
-		console.error("Error initializing storage:", error);
-		console.log("Please ensure you have proper permissions and the bucket exists.");
+		console.error("❌ Error checking storage:", error);
+		return false;
 	}
 };
 
@@ -107,13 +110,26 @@ export const checkStorageBucket = async (): Promise<boolean> => {
 		const { data: buckets, error } = await supabase.storage.listBuckets();
 
 		if (error) {
-			console.error("Error checking storage buckets:", error);
+			if (!bucketErrorLogged) {
+				console.error("❌ Error checking storage buckets:", error);
+				bucketErrorLogged = true;
+			}
 			return false;
 		}
 
-		return buckets.some((bucket) => bucket.name === MEDIA_BUCKET);
+		const exists = buckets.some((bucket) => bucket.name === MEDIA_BUCKET);
+
+		if (!exists && !bucketErrorLogged) {
+			console.warn(`⚠️ Bucket "${MEDIA_BUCKET}" not found`);
+			bucketErrorLogged = true;
+		}
+
+		return exists;
 	} catch (error) {
-		console.error("Unexpected error checking storage bucket:", error);
+		if (!bucketErrorLogged) {
+			console.error("❌ Error checking storage bucket:", error);
+			bucketErrorLogged = true;
+		}
 		return false;
 	}
 };

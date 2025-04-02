@@ -1,6 +1,8 @@
-// src/api/apiClient.ts
+// client/src/api/apiClient.ts
 import axios, { AxiosRequestConfig, CancelTokenSource } from "axios";
 import { performance } from "@/utils/performance";
+import { SavedDraft, CombinedContent } from "@/types/content";
+import { MediaFile } from "@/types/media";
 
 // Track active requests for cancellation
 const activeRequests = new Map<string, CancelTokenSource>();
@@ -175,12 +177,12 @@ export const contentApi = {
 	},
 
 	// Save a draft to the database
-	saveDraft: async (prompt: string, draft: string, image?: { id: string; url: string; credit: string; creditUrl: string }, platform?: string) => {
+	saveDraft: async (prompt: string, draft: string, image?: { id: string; url: string; credit: string; creditUrl: string }, platform?: string, mediaFiles?: MediaFile[]) => {
 		try {
 			const response = await createRequest({
 				method: "post",
 				url: "/content/save",
-				data: { prompt, draft, image, platform },
+				data: { prompt, draft, image, platform, mediaFiles },
 			});
 			return response;
 		} catch (error) {
@@ -192,13 +194,27 @@ export const contentApi = {
 	// Get all saved drafts
 	getSavedDrafts: async () => {
 		try {
-			const response = await createRequest<{ drafts: any[] }>({
+			const response = await createRequest<{ drafts: SavedDraft[] }>({
 				method: "get",
 				url: "/content/saved",
 			});
 			return response.drafts;
 		} catch (error) {
 			console.error("Error fetching saved drafts:", error);
+			throw error;
+		}
+	},
+
+	// Get a draft by ID
+	getDraftById: async (draftId: string) => {
+		try {
+			const response = await createRequest<{ draft: SavedDraft }>({
+				method: "get",
+				url: `/content/${draftId}`,
+			});
+			return response.draft;
+		} catch (error) {
+			console.error(`Error fetching draft ${draftId}:`, error);
 			throw error;
 		}
 	},
@@ -213,6 +229,21 @@ export const contentApi = {
 			return response;
 		} catch (error) {
 			console.error(`Error deleting draft ${draftId}:`, error);
+			throw error;
+		}
+	},
+
+	// Save combined content
+	saveCombinedContent: async (draftId: string, content: string, platform?: string) => {
+		try {
+			const response = await createRequest<{ success: boolean; combinedContent: CombinedContent }>({
+				method: "post",
+				url: `/content/combine/${draftId}`,
+				data: { content, platform },
+			});
+			return response;
+		} catch (error) {
+			console.error(`Error saving combined content for draft ${draftId}:`, error);
 			throw error;
 		}
 	},
@@ -231,6 +262,71 @@ export const imageApi = {
 			return response.images;
 		} catch (error) {
 			console.error("Error fetching image suggestions:", error);
+			throw error;
+		}
+	},
+};
+
+// Media API endpoints for file uploads
+export const mediaApi = {
+	// Upload one or more files
+	uploadFiles: async (files: File[], altTexts: Record<string, string> = {}, draftId?: string, onUploadProgress?: (progressEvent: any) => void) => {
+		try {
+			const formData = new FormData();
+
+			// Add files to form data
+			files.forEach((file) => {
+				formData.append("files", file);
+
+				// Add alt text if provided
+				if (altTexts[file.name]) {
+					formData.append(`alt_${file.name}`, altTexts[file.name]);
+				}
+			});
+
+			// Add draft ID if provided
+			if (draftId) {
+				formData.append("draftId", draftId);
+			}
+
+			const response = await api.post("/media/upload", formData, {
+				headers: {
+					"Content-Type": "multipart/form-data",
+				},
+				onUploadProgress,
+			});
+
+			return response.data.files as MediaFile[];
+		} catch (error) {
+			console.error("Error uploading files:", error);
+			throw error;
+		}
+	},
+
+	// Get media files for a draft
+	getMediaFiles: async (draftId: string) => {
+		try {
+			const response = await createRequest<{ media: MediaFile[] }>({
+				method: "get",
+				url: `/media/draft/${draftId}`,
+			});
+			return response.media;
+		} catch (error) {
+			console.error(`Error fetching media for draft ${draftId}:`, error);
+			throw error;
+		}
+	},
+
+	// Delete a media file
+	deleteMediaFile: async (fileId: string) => {
+		try {
+			const response = await createRequest({
+				method: "delete",
+				url: `/media/${fileId}`,
+			});
+			return response;
+		} catch (error) {
+			console.error(`Error deleting media file ${fileId}:`, error);
 			throw error;
 		}
 	},
@@ -261,5 +357,6 @@ export const handleApiError = (error: any) => {
 export default {
 	content: contentApi,
 	images: imageApi,
+	media: mediaApi,
 	cancelAllRequests,
 };

@@ -1,8 +1,10 @@
 // client/src/hooks/useApi.ts
 import { useState, useCallback, useEffect } from "react";
-import { contentApi, imageApi, handleApiError } from "@/api/apiClient";
+import { contentApi, imageApi, mediaApi, handleApiError } from "@/api/apiClient";
 import { useApiCache } from "./useApiCache";
 import { performance } from "@/utils/performance";
+import { MediaFile } from "@/types/media";
+import { SavedDraft } from "@/types/content";
 
 // Generic interface for API state
 interface ApiState<T> {
@@ -94,29 +96,32 @@ export const useContentDraft = () => {
 		[state]
 	);
 
-	const saveDraft = useCallback(async (prompt: string, draft: string, image?: { id: string; url: string; credit: string; creditUrl: string }, platform?: string) => {
-		performance.mark("save-draft-start");
+	const saveDraft = useCallback(
+		async (prompt: string, draft: string, image?: { id: string; url: string; credit: string; creditUrl: string }, platform?: string, mediaFiles?: MediaFile[]) => {
+			performance.mark("save-draft-start");
 
-		try {
-			const result = await contentApi.saveDraft(prompt, draft, image, platform);
+			try {
+				const result = await contentApi.saveDraft(prompt, draft, image, platform, mediaFiles);
 
-			performance.mark("save-draft-end");
-			performance.measure("save-draft", "save-draft-start", "save-draft-end");
+				performance.mark("save-draft-end");
+				performance.measure("save-draft", "save-draft-start", "save-draft-end");
 
-			return result;
-		} catch (error) {
-			const errorDetails = handleApiError(error);
+				return result;
+			} catch (error) {
+				const errorDetails = handleApiError(error);
 
-			performance.mark("save-draft-error");
-			performance.measure("save-draft-error", "save-draft-start", "save-draft-error");
+				performance.mark("save-draft-error");
+				performance.measure("save-draft-error", "save-draft-start", "save-draft-error");
 
-			setState((prev) => ({
-				...prev,
-				error: errorDetails?.message || "Failed to save draft",
-			}));
-			throw error;
-		}
-	}, []);
+				setState((prev) => ({
+					...prev,
+					error: errorDetails?.message || "Failed to save draft",
+				}));
+				throw error;
+			}
+		},
+		[]
+	);
 
 	return { ...state, generateDraft, saveDraft };
 };
@@ -132,7 +137,7 @@ export const useSavedDrafts = () => {
 		error,
 		fetchData: fetchDrafts,
 		invalidateCache,
-	} = useApiCache("savedDrafts", contentApi.getSavedDrafts, {
+	} = useApiCache<SavedDraft[]>("savedDrafts", contentApi.getSavedDrafts, {
 		enabled: true,
 		ttl: 60000, // 1 minute cache
 	});
@@ -184,12 +189,36 @@ export const useSavedDrafts = () => {
 		[invalidateCache]
 	);
 
+	const saveCombinedContent = useCallback(
+		async (draftId: string, content: string, platform?: string) => {
+			performance.mark("save-combined-content-start");
+
+			try {
+				const result = await contentApi.saveCombinedContent(draftId, content, platform);
+				// Invalidate cache to trigger refetch
+				invalidateCache("all");
+
+				performance.mark("save-combined-content-end");
+				performance.measure("save-combined-content", "save-combined-content-start", "save-combined-content-end");
+
+				return result;
+			} catch (error) {
+				performance.mark("save-combined-content-error");
+				performance.measure("save-combined-content-error", "save-combined-content-start", "save-combined-content-error");
+
+				throw error;
+			}
+		},
+		[invalidateCache]
+	);
+
 	return {
 		data,
 		loading,
 		error: error ? String(error) : null,
 		fetchSavedDrafts,
 		deleteDraft,
+		saveCombinedContent,
 	};
 };
 
@@ -265,6 +294,135 @@ export const useImageSuggestions = () => {
 	}, []);
 
 	return { ...state, suggestImages };
+};
+
+/**
+ * Hook for managing media files
+ */
+export const useMediaFiles = (draftId?: string) => {
+	const [state, setState] = useState<ApiState<MediaFile[]>>({
+		data: null,
+		loading: false,
+		error: null,
+	});
+
+	// Fetch media files for a draft
+	const fetchMediaFiles = useCallback(
+		async (draftId: string) => {
+			if (!draftId) return;
+
+			performance.mark("fetch-media-start");
+			setState({ ...state, loading: true, error: null });
+
+			try {
+				const mediaFiles = await mediaApi.getMediaFiles(draftId);
+				setState({ data: mediaFiles, loading: false, error: null });
+
+				performance.mark("fetch-media-end");
+				performance.measure("fetch-media", "fetch-media-start", "fetch-media-end");
+
+				return mediaFiles;
+			} catch (error) {
+				const errorDetails = handleApiError(error);
+
+				performance.mark("fetch-media-error");
+				performance.measure("fetch-media-error", "fetch-media-start", "fetch-media-error");
+
+				setState({
+					data: null,
+					loading: false,
+					error: errorDetails?.message || "Failed to fetch media files",
+				});
+				throw error;
+			}
+		},
+		[state]
+	);
+
+	// Upload media files
+	const uploadFiles = useCallback(
+		async (files: File[], altTexts: Record<string, string> = {}, onUploadProgress?: (progressEvent: any) => void) => {
+			performance.mark("upload-files-start");
+			setState({ ...state, loading: true, error: null });
+
+			try {
+				const uploadedFiles = await mediaApi.uploadFiles(files, altTexts, draftId, onUploadProgress);
+
+				// Append new files to existing ones
+				setState((prev) => ({
+					data: prev.data ? [...prev.data, ...uploadedFiles] : uploadedFiles,
+					loading: false,
+					error: null,
+				}));
+
+				performance.mark("upload-files-end");
+				performance.measure("upload-files", "upload-files-start", "upload-files-end");
+
+				return uploadedFiles;
+			} catch (error) {
+				const errorDetails = handleApiError(error);
+
+				performance.mark("upload-files-error");
+				performance.measure("upload-files-error", "upload-files-start", "upload-files-error");
+
+				setState((prev) => ({
+					...prev,
+					loading: false,
+					error: errorDetails?.message || "Failed to upload files",
+				}));
+				throw error;
+			}
+		},
+		[state, draftId]
+	);
+
+	// Delete a media file
+	const deleteMediaFile = useCallback(async (fileId: string) => {
+		performance.mark("delete-media-start");
+
+		try {
+			await mediaApi.deleteMediaFile(fileId);
+
+			// Remove deleted file from state
+			setState((prev) => {
+				if (!prev.data) return prev;
+				return {
+					...prev,
+					data: prev.data.filter((file) => file.id !== fileId),
+				};
+			});
+
+			performance.mark("delete-media-end");
+			performance.measure("delete-media", "delete-media-start", "delete-media-end");
+
+			return true;
+		} catch (error) {
+			const errorDetails = handleApiError(error);
+
+			performance.mark("delete-media-error");
+			performance.measure("delete-media-error", "delete-media-start", "delete-media-error");
+
+			setState((prev) => ({
+				...prev,
+				error: errorDetails?.message || "Failed to delete media file",
+			}));
+			throw error;
+		}
+	}, []);
+
+	// Fetch media files on mount if draftId is provided
+	useEffect(() => {
+		if (draftId) {
+			fetchMediaFiles(draftId).catch(console.error);
+		}
+	}, [draftId, fetchMediaFiles]);
+
+	return {
+		...state,
+		fetchMediaFiles,
+		uploadFiles,
+		deleteMediaFile,
+	};
 };
 
 // Additional needed imports

@@ -36,9 +36,18 @@ const DirectSignUp: React.FC = () => {
 				emailAddress: email,
 				password,
 				username,
-				firstName,
-				lastName,
 			});
+
+			// Set first and last name
+			try {
+				await signUp.update({
+					firstName,
+					lastName,
+				});
+			} catch (nameErr) {
+				console.warn("Could not set name during signup, will try again after verification", nameErr);
+				// Continue with signup process even if setting names fails
+			}
 
 			// Send the email verification code
 			await signUp.prepareEmailAddressVerification({ strategy: "email_code" });
@@ -72,6 +81,19 @@ const DirectSignUp: React.FC = () => {
 				setError("Verification failed. Please try again.");
 				setLoading(false);
 				return;
+			}
+
+			// Try to set first and last name again if it didn't work in the handleSubmit function
+			try {
+				if (!signUp.firstName || !signUp.lastName) {
+					await signUp.update({
+						firstName,
+						lastName,
+					});
+				}
+			} catch (nameErr) {
+				// Continue even if this fails - the user will still be created
+				console.warn("Could not set name after verification:", nameErr);
 			}
 
 			// Sign up successful, set session

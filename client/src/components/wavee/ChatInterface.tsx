@@ -1,24 +1,34 @@
 // client/src/components/wavee/ChatInterface.tsx
-import React, { useState, useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useAnnouncement } from "@/hooks/useAnnouncement";
+import { useChat } from "@/hooks/useChat";
 import LoadingSpinner from "@/components/common/LoadingSpinner";
 import { performance } from "@/utils/performance";
-
-interface Message {
-	id: string;
-	text: string;
-	sender: "user" | "ai";
-	timestamp: Date;
-}
+import ErrorMessage from "@/components/common/ErrorMessage";
+import { Message as MessageType } from "@/types/chat";
+import ReactMarkdown from "react-markdown";
 
 interface ChatInterfaceProps {
-	initialMessages?: Message[];
+	initialMessages?: MessageType[];
+	sessionId?: string;
+	onSessionCreate?: (sessionId: string) => void;
 }
 
-const ChatInterface: React.FC<ChatInterfaceProps> = ({ initialMessages = [] }) => {
-	const [messages, setMessages] = useState<Message[]>(initialMessages);
+const ChatInterface: React.FC<ChatInterfaceProps> = ({ initialMessages = [], sessionId, onSessionCreate }) => {
+	const {
+		messages,
+		isGenerating,
+		error,
+		sessionId: chatSessionId,
+		sendMessage,
+		cancelRequest,
+	} = useChat({
+		initialMessages,
+		sessionId,
+		onError: (err) => console.error("Chat error:", err),
+	});
+
 	const [inputValue, setInputValue] = useState("");
-	const [isGenerating, setIsGenerating] = useState(false);
 	const messagesEndRef = useRef<HTMLDivElement>(null);
 	const inputRef = useRef<HTMLInputElement>(null);
 	const { announce, LiveRegion } = useAnnouncement();
@@ -45,32 +55,20 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ initialMessages = [] }) =
 		// Announce new message for screen readers if there are any messages
 		if (messages.length > 0) {
 			const lastMessage = messages[messages.length - 1];
-			if (lastMessage.sender === "ai") {
+			if (lastMessage.sender === "ai" && lastMessage.status === "sent") {
 				announce(`New response: ${lastMessage.text.substring(0, 100)}${lastMessage.text.length > 100 ? "..." : ""}`);
 			}
 		}
 	}, [messages, announce]);
 
-	// Sample AI response function (would be replaced with actual API call)
-	const getAIResponse = async (userMessage: string): Promise<string> => {
-		// Measure response time for performance monitoring
-		return performance.measureTime(async () => {
-			// Simulate API delay
-			return new Promise((resolve) => {
-				setTimeout(() => {
-					const responses = [
-						"I understand what you're asking about. Let me help with that.",
-						"That's an interesting question. Here's what I know about it.",
-						"I'd be happy to assist with that. Here's some information that might help.",
-						"Great question! Here's what I can tell you about that topic.",
-					];
-					const randomResponse = responses[Math.floor(Math.random() * responses.length)];
-					resolve(`${randomResponse} (In response to: ${userMessage})`);
-				}, 1000);
-			});
-		}, "ai-response-time");
-	};
+	// Notify parent component when session is created
+	useEffect(() => {
+		if (chatSessionId && chatSessionId !== sessionId && onSessionCreate) {
+			onSessionCreate(chatSessionId);
+		}
+	}, [chatSessionId, sessionId, onSessionCreate]);
 
+	// Handler for sending messages
 	const handleSendMessage = async () => {
 		const text = inputValue.trim();
 		if (!text || isGenerating) return;
@@ -78,53 +76,45 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ initialMessages = [] }) =
 		// Clear input field
 		setInputValue("");
 
-		// Add user message
-		const userMessage: Message = {
-			id: Date.now().toString(),
-			text,
-			sender: "user",
-			timestamp: new Date(),
-		};
+		// Send message
+		await sendMessage(text);
+	};
 
-		setMessages((prevMessages) => [...prevMessages, userMessage]);
-
-		// Show generating indicator
-		setIsGenerating(true);
-
-		try {
-			// Get AI response
-			const aiResponseText = await getAIResponse(text);
-
-			// Add AI message
-			const aiMessage: Message = {
-				id: (Date.now() + 1).toString(),
-				text: aiResponseText,
-				sender: "ai",
-				timestamp: new Date(),
-			};
-
-			setMessages((prevMessages) => [...prevMessages, aiMessage]);
-		} catch (error) {
-			console.error("Error getting AI response:", error);
-
-			// Add error message
-			const errorMessage: Message = {
-				id: (Date.now() + 1).toString(),
-				text: "Sorry, I had trouble processing your request. Please try again.",
-				sender: "ai",
-				timestamp: new Date(),
-			};
-
-			setMessages((prevMessages) => [...prevMessages, errorMessage]);
-			announce("Error generating response. Please try again.");
-		} finally {
-			setIsGenerating(false);
+	// Handle input submission via Enter key
+	const handleKeyDown = (e: React.KeyboardEvent) => {
+		if (e.key === "Enter" && !e.shiftKey) {
+			e.preventDefault();
+			handleSendMessage();
 		}
 	};
 
 	// Format timestamp
 	const formatTime = (date: Date): string => {
 		return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+	};
+
+	// Render message content with support for markdown
+	const renderMessageContent = (message: MessageType) => {
+		switch (message.status) {
+			case "sending":
+				return message.sender === "ai" ? (
+					<div className="flex items-center space-x-2">
+						<LoadingSpinner size="sm" color="primary" />
+						<span className="text-gray-500">Generating response...</span>
+					</div>
+				) : (
+					<div>{message.text}</div>
+				);
+			case "error":
+				return (
+					<div className="text-red-500">
+						<p>{message.text}</p>
+						{message.error && <p className="text-xs mt-1">Error: {message.error}</p>}
+					</div>
+				);
+			default:
+				return <ReactMarkdown className="prose prose-sm max-w-none break-words">{message.text}</ReactMarkdown>;
+		}
 	};
 
 	return (
@@ -146,13 +136,20 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ initialMessages = [] }) =
 								<div key={message.id} className={`flex ${message.sender === "user" ? "justify-end" : "justify-start"}`}>
 									<div
 										className={`max-w-[80%] rounded-2xl px-4 py-3 ${
-											message.sender === "user" ? "bg-[#e03885] text-white" : "bg-white border border-gray-200 text-gray-800"
+											message.sender === "user"
+												? "bg-[#e03885] text-white"
+												: message.status === "error"
+												? "bg-red-50 border border-red-200 text-gray-800"
+												: "bg-white border border-gray-200 text-gray-800"
 										}`}
 										role={message.sender === "user" ? "complementary" : "complementary"}
 										aria-label={message.sender === "user" ? "Your message" : "AI response"}>
 										<div className="flex flex-col">
-											<span className="break-words">{message.text}</span>
-											<span className={`text-xs mt-1 self-end ${message.sender === "user" ? "text-pink-100" : "text-gray-500"}`}>
+											{renderMessageContent(message)}
+											<span
+												className={`text-xs mt-1 self-end ${
+													message.sender === "user" ? "text-pink-100" : message.status === "error" ? "text-red-400" : "text-gray-500"
+												}`}>
 												{formatTime(message.timestamp)}
 											</span>
 										</div>
@@ -164,6 +161,13 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ initialMessages = [] }) =
 					)}
 				</div>
 			</div>
+
+			{/* Error message */}
+			{error && (
+				<div className="px-4 mb-4">
+					<ErrorMessage message={error.message} />
+				</div>
+			)}
 
 			{/* Input form */}
 			<div className="bg-white p-4 border-t border-gray-100">
@@ -197,6 +201,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ initialMessages = [] }) =
 								ref={inputRef}
 								value={inputValue}
 								onChange={(e) => setInputValue(e.target.value)}
+								onKeyDown={handleKeyDown}
 								placeholder="Type your message..."
 								className="w-full px-4 py-2 bg-gray-100 border border-gray-100 rounded-full text-gray-800 focus:outline-none focus:border-purple-300 focus:ring-1 focus:ring-purple-300"
 								disabled={isGenerating}
@@ -204,19 +209,27 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ initialMessages = [] }) =
 							/>
 						</div>
 
-						<button
-							type="submit"
-							className="p-2 rounded-full bg-[#e03885] text-white hover:bg-pink-600 focus:outline-none focus:ring-2 focus:ring-pink-400 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
-							disabled={!inputValue.trim() || isGenerating}
-							aria-label={isGenerating ? "Generating response..." : "Send message"}>
-							{isGenerating ? (
-								<LoadingSpinner size="sm" color="white" />
-							) : (
+						{isGenerating ? (
+							<button
+								type="button"
+								onClick={cancelRequest}
+								className="p-2 rounded-full bg-gray-400 text-white hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-400 focus:ring-offset-2"
+								aria-label="Cancel generation">
+								<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+									<path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+								</svg>
+							</button>
+						) : (
+							<button
+								type="submit"
+								className="p-2 rounded-full bg-[#e03885] text-white hover:bg-pink-600 focus:outline-none focus:ring-2 focus:ring-pink-400 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+								disabled={!inputValue.trim()}
+								aria-label="Send message">
 								<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
 									<path strokeLinecap="round" strokeLinejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3" />
 								</svg>
-							)}
-						</button>
+							</button>
+						)}
 					</form>
 				</div>
 			</div>

@@ -5,7 +5,6 @@ import cors from "cors";
 import path from "path";
 import contentRoutes from "./routes/contentRoutes";
 import imageRoutes from "./routes/imageRoutes";
-import chatRoutes from "./routes/chatRoutes";
 import { supabase } from "./utils/supabaseClient";
 
 const app: Express = express();
@@ -18,7 +17,6 @@ app.use(express.json());
 // --- API Routes ---
 app.use("/api/content", contentRoutes);
 app.use("/api/images", imageRoutes);
-app.use("/api/chat", chatRoutes);
 
 // --- Serve React App in Production ---
 if (process.env.NODE_ENV === "production") {

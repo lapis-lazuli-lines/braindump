@@ -31,11 +31,11 @@ const Sidebar: React.FC<SidebarProps> = ({ visible = true, onContentCreator, onW
 		return expandedSections.includes(sectionId);
 	};
 
-	// Render curved connector for submenu items
+	// Render simple L-shaped connector for submenu items
 	const renderConnector = () => (
 		<>
-			<div className="absolute left-[-15px] top-1/2 h-px w-3 bg-gray-200"></div>
-			<div className="absolute left-[-15px] top-[calc(50%-4px)] h-4 w-4 border-b border-l border-gray-200 rounded-bl-lg"></div>
+			{/* Simple horizontal connector line */}
+			<div className="absolute left-3 top-1/2 h-px w-4 bg-gray-300"></div>
 		</>
 	);
 
@@ -114,9 +114,9 @@ const Sidebar: React.FC<SidebarProps> = ({ visible = true, onContentCreator, onW
 					</div>
 
 					{isExpanded("content") && !isCollapsed && (
-						<div className="mt-1 relative pl-7">
-							{/* Vertical line for submenu */}
-							<div className="absolute left-3 top-2 bottom-2 w-px bg-gray-200"></div>
+						<div className="mt-1 relative pl-8">
+							{/* Simple vertical line for submenu */}
+							<div className="absolute left-3 top-0 bottom-0 w-px bg-gray-300"></div>
 
 							<div
 								className={`flex items-center py-2 px-2 rounded-md cursor-pointer relative ${
@@ -178,9 +178,9 @@ const Sidebar: React.FC<SidebarProps> = ({ visible = true, onContentCreator, onW
 					</div>
 
 					{isExpanded("workflows") && !isCollapsed && (
-						<div className="mt-1 relative pl-7">
-							{/* Vertical line for submenu */}
-							<div className="absolute left-3 top-2 bottom-2 w-px bg-gray-200"></div>
+						<div className="mt-1 relative pl-8">
+							{/* Continuous vertical line for submenu */}
+							<div className="absolute left-3 top-0 bottom-0 w-px bg-gray-200"></div>
 
 							<div
 								className={`flex items-center py-2 px-2 rounded-md cursor-pointer relative ${

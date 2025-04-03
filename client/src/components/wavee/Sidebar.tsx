@@ -1,155 +1,251 @@
 // client/src/components/wavee/Sidebar.tsx
-import React from "react";
+import React, { useState } from "react";
 import { useAuthContext } from "@/contexts/AuthContext";
-import { useClerk } from "@clerk/clerk-react";
-import Logo from "@/components/common/Logo";
-import VisuallyHidden from "@/components/common/VisuallyHidden";
+import useLocalStorage from "@/hooks/useLocalStorage";
 
 interface SidebarProps {
-	visible: boolean;
+	visible?: boolean;
 	onContentCreator?: () => void;
 	onWorkflowCreator?: () => void;
 	currentScreen?: string;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ visible, onContentCreator, onWorkflowCreator, currentScreen }) => {
-	// Use auth context to get user data
-	const { userFullName, userImageUrl } = useAuthContext();
-	const { signOut } = useClerk();
+const Sidebar: React.FC<SidebarProps> = ({ visible = true, onContentCreator, onWorkflowCreator, currentScreen }) => {
+	const { signOut } = useAuthContext();
+	const [isCollapsed, setIsCollapsed] = useLocalStorage("sidebar-collapsed", false);
+	const [expandedSections, setExpandedSections] = useState<string[]>(["content"]);
 
-	// Function to get user initials
-	const getUserInitials = (): string => {
-		if (!userFullName) return "W";
-		return userFullName
-			.split(" ")
-			.map((name) => name[0])
-			.join("")
-			.toUpperCase()
-			.substring(0, 2);
+	const toggleCollapsed = () => {
+		setIsCollapsed(!isCollapsed);
 	};
 
-	const handleSignOut = async () => {
-		try {
-			await signOut();
-		} catch (error) {
-			console.error("Error signing out:", error);
-		}
+	const toggleSection = (sectionId: string) => {
+		setExpandedSections((prev) => (prev.includes(sectionId) ? prev.filter((id) => id !== sectionId) : [...prev, sectionId]));
 	};
+
+	const isActive = (screenName: string) => {
+		return currentScreen === screenName;
+	};
+
+	const isExpanded = (sectionId: string) => {
+		return expandedSections.includes(sectionId);
+	};
+
+	// Render curved connector for submenu items
+	const renderConnector = () => (
+		<>
+			<div className="absolute left-[-15px] top-1/2 h-px w-3 bg-gray-200"></div>
+			<div className="absolute left-[-15px] top-[calc(50%-4px)] h-4 w-4 border-b border-l border-gray-200 rounded-bl-lg"></div>
+		</>
+	);
 
 	return (
-		<nav className={`${visible ? "block" : "hidden"} md:block w-64 bg-[#2e0e4b] h-screen flex-shrink-0 flex flex-col z-20`} aria-label="Main Navigation">
-			{/* Logo */}
-			<div className="p-4 flex justify-center border-b border-[#4e2272]">
-				<Logo variant="white" size="md" />
-			</div>
-
-			{/* Action Buttons */}
-			<div className="p-4 space-y-3">
-				{/* Content Creator Button */}
-				<button
-					onClick={onContentCreator}
-					className={`w-full flex items-center justify-center gap-2 py-3 px-4 rounded-full transition-colors ${
-						currentScreen === "content" ? "bg-[#6b2f9c] text-white" : "bg-[#5a2783] hover:bg-[#6b2f9c] text-white"
-					}`}
-					aria-label="Open content creator"
-					aria-current={currentScreen === "content" ? "page" : undefined}>
-					<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-						<path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z" />
-						<path fillRule="evenodd" d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clipRule="evenodd" />
-					</svg>
-					<span>Content Creator</span>
-				</button>
-
-				{/* Workflow Creator Button */}
-				<button
-					onClick={onWorkflowCreator}
-					className={`w-full flex items-center justify-center gap-2 py-3 px-4 rounded-full transition-colors ${
-						currentScreen === "workflow" ? "bg-[#6b2f9c] text-white" : "bg-[#5a2783] hover:bg-[#6b2f9c] text-white"
-					}`}
-					aria-label="Open workflow creator"
-					aria-current={currentScreen === "workflow" ? "page" : undefined}>
-					<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-						<path fillRule="evenodd" d="M3 5a2 2 0 012-2h10a2 2 0 012 2v10a2 2 0 01-2 2H5a2 2 0 01-2-2V5zm11 1H6v8l4-2 4 2V6z" clipRule="evenodd" />
-					</svg>
-					<span>Workflow Creator</span>
-				</button>
-			</div>
-
-			{/* Empty space where chat history was */}
-			<div className="flex-1 overflow-y-auto px-3">
-				<div className="py-6 text-center text-gray-500">
-					<p>Use the Content Creator to generate ideas and create content</p>
+		<div className={`h-screen bg-white ${isCollapsed ? "w-16" : "w-64"} flex-shrink-0 transition-all duration-200 ${visible ? "block" : "hidden"}`}>
+			{/* Logo area */}
+			<div className="px-4 py-4 flex items-center">
+				<div className="text-[#e03885] font-bold flex items-center">
+					<span className="text-2xl mr-2">W</span>
+					{!isCollapsed && <span>WaveeAI</span>}
 				</div>
 			</div>
 
-			{/* Download App - Still included */}
-			<div className="p-4 mt-auto border-t border-[#4e2272]">
-				<div className="bg-[#3d1261] p-4 rounded-xl">
-					<div className="flex items-center mb-3">
-						<div className="bg-[#5a2783] w-8 h-8 rounded-full flex items-center justify-center">
-							<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-white" viewBox="0 0 20 20" fill="currentColor">
-								<path
-									fillRule="evenodd"
-									d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z"
-									clipRule="evenodd"
-								/>
-							</svg>
-						</div>
-						<div className="ml-3">
-							<h3 className="text-white font-medium">Download Wavee App</h3>
-							<p className="text-xs text-gray-300">Download Wavee App on your phone to assist you on-the-go</p>
-						</div>
-					</div>
-					<button
-						className="w-full bg-[#5a2783] hover:bg-[#6b2f9c] text-white py-2 px-4 rounded-full flex items-center justify-center gap-2 transition-colors"
-						aria-label="Download WaveeAI app">
-						<span>Download</span>
-						<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-							<path
-								fillRule="evenodd"
-								d="M10.293 5.293a1 1 0 011.414 0l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414-1.414L12.586 11H5a1 1 0 110-2h7.586l-2.293-2.293a1 1 0 010-1.414z"
-								clipRule="evenodd"
-							/>
-						</svg>
-					</button>
-				</div>
+			{/* Toggle button */}
+			<div className="absolute top-20 right-0 z-50">
+				<button
+					onClick={toggleCollapsed}
+					className="p-1 rounded-full bg-white flex items-center justify-center text-gray-500 transition-colors hover:text-gray-700"
+					aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}>
+					<svg
+						xmlns="http://www.w3.org/2000/svg"
+						className={`h-4 w-4 transition-transform ${!isCollapsed ? "rotate-180" : ""}`}
+						fill="none"
+						viewBox="0 0 24 24"
+						stroke="currentColor">
+						<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+					</svg>
+				</button>
 			</div>
 
-			{/* Settings and Profile - Updated with real user data */}
-			<div className="p-4 border-t border-[#4e2272]">
-				<div className="flex items-center justify-between">
-					<button className="p-3 rounded-lg hover:bg-[#3d1261] transition-colors" aria-label="Settings">
-						<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-white" viewBox="0 0 20 20" fill="currentColor">
-							<path
-								fillRule="evenodd"
-								d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z"
-								clipRule="evenodd"
-							/>
-						</svg>
-						<VisuallyHidden>Settings</VisuallyHidden>
-					</button>
-					<div className="flex items-center">
-						{userImageUrl ? (
-							<img src={userImageUrl} alt="Profile" className="h-8 w-8 rounded-full object-cover" />
-						) : (
-							<div className="h-8 w-8 rounded-full bg-[#5a2783] flex items-center justify-center text-sm font-medium text-white">{getUserInitials()}</div>
-						)}
-						<span className="ml-3 text-sm font-medium text-white">{userFullName || "User"}</span>
-						<button className="ml-2 text-gray-400 hover:text-gray-200" onClick={handleSignOut} aria-label="Sign out">
-							<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+			{/* Navigation items */}
+			<div className="mt-6 space-y-2 px-3">
+				{/* Dashboard */}
+				<div
+					className={`flex items-center px-3 py-2 rounded-md cursor-pointer ${isActive("welcome") ? "bg-purple-100 text-purple-800" : "text-gray-700 hover:bg-gray-100"}`}
+					onClick={() => {}}>
+					<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+						<path
+							strokeLinecap="round"
+							strokeLinejoin="round"
+							strokeWidth={2}
+							d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"
+						/>
+					</svg>
+					{!isCollapsed && <span>Dashboard</span>}
+				</div>
+
+				{/* Product (Replacing Content) */}
+				<div>
+					<div
+						className={`flex items-center justify-between px-3 py-2 rounded-md cursor-pointer ${
+							isActive("content") ? "bg-purple-100 text-purple-800" : "text-gray-700 hover:bg-gray-100"
+						}`}
+						onClick={() => toggleSection("content")}>
+						<div className="flex items-center">
+							<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
 								<path
 									strokeLinecap="round"
 									strokeLinejoin="round"
 									strokeWidth={2}
-									d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
+									d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
 								/>
 							</svg>
-							<VisuallyHidden>Sign out</VisuallyHidden>
-						</button>
+							{!isCollapsed && <span>Product</span>}
+						</div>
+						{!isCollapsed && (
+							<svg
+								xmlns="http://www.w3.org/2000/svg"
+								className={`h-4 w-4 transition-transform ${isExpanded("content") ? "rotate-180" : ""}`}
+								fill="none"
+								viewBox="0 0 24 24"
+								stroke="currentColor">
+								<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+							</svg>
+						)}
 					</div>
+
+					{isExpanded("content") && !isCollapsed && (
+						<div className="mt-1 relative pl-7">
+							{/* Vertical line for submenu */}
+							<div className="absolute left-3 top-2 bottom-2 w-px bg-gray-200"></div>
+
+							<div
+								className={`flex items-center py-2 px-2 rounded-md cursor-pointer relative ${
+									isActive("content") ? "bg-white text-purple-800 font-medium shadow-sm" : "text-gray-500 hover:bg-gray-100"
+								}`}
+								onClick={onContentCreator}>
+								{renderConnector()}
+								<span>Overview</span>
+							</div>
+
+							<div className="flex items-center justify-between py-2 px-2 rounded-md text-gray-500 hover:bg-gray-100 cursor-pointer relative">
+								{renderConnector()}
+								<span>Drafts</span>
+								<span className="text-xs font-medium bg-orange-200 text-orange-800 px-2 py-0.5 rounded-full">3</span>
+							</div>
+
+							<div className="flex items-center justify-between py-2 px-2 rounded-md text-gray-500 hover:bg-gray-100 cursor-pointer relative">
+								{renderConnector()}
+								<span>Released</span>
+							</div>
+
+							<div className="flex items-center justify-between py-2 px-2 rounded-md text-gray-500 hover:bg-gray-100 cursor-pointer relative">
+								{renderConnector()}
+								<span>Comments</span>
+							</div>
+
+							<div className="flex items-center justify-between py-2 px-2 rounded-md text-gray-500 hover:bg-gray-100 cursor-pointer relative">
+								{renderConnector()}
+								<span>Scheduled</span>
+								<span className="text-xs font-medium bg-green-200 text-green-800 px-2 py-0.5 rounded-full">8</span>
+							</div>
+						</div>
+					)}
+				</div>
+
+				{/* Customers (Replacing Workflows) */}
+				<div>
+					<div
+						className={`flex items-center justify-between px-3 py-2 rounded-md cursor-pointer ${
+							isActive("workflow") ? "bg-purple-100 text-purple-800" : "text-gray-700 hover:bg-gray-100"
+						}`}
+						onClick={() => toggleSection("workflows")}>
+						<div className="flex items-center">
+							<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+								<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+							</svg>
+							{!isCollapsed && <span>Customers</span>}
+						</div>
+						{!isCollapsed && (
+							<svg
+								xmlns="http://www.w3.org/2000/svg"
+								className={`h-4 w-4 transition-transform ${isExpanded("workflows") ? "rotate-180" : ""}`}
+								fill="none"
+								viewBox="0 0 24 24"
+								stroke="currentColor">
+								<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+							</svg>
+						)}
+					</div>
+
+					{isExpanded("workflows") && !isCollapsed && (
+						<div className="mt-1 relative pl-7">
+							{/* Vertical line for submenu */}
+							<div className="absolute left-3 top-2 bottom-2 w-px bg-gray-200"></div>
+
+							<div
+								className={`flex items-center py-2 px-2 rounded-md cursor-pointer relative ${
+									isActive("workflow") ? "bg-white text-purple-800 font-medium shadow-sm" : "text-gray-500 hover:bg-gray-100"
+								}`}
+								onClick={onWorkflowCreator}>
+								{renderConnector()}
+								<span>Workflow Creator</span>
+							</div>
+
+							<div className="flex items-center py-2 px-2 rounded-md text-gray-500 hover:bg-gray-100 cursor-pointer relative">
+								{renderConnector()}
+								<span>Saved Workflows</span>
+							</div>
+
+							<div className="flex items-center py-2 px-2 rounded-md text-gray-500 hover:bg-gray-100 cursor-pointer relative">
+								{renderConnector()}
+								<span>Templates</span>
+							</div>
+						</div>
+					)}
+				</div>
+
+				{/* Settings */}
+				<div className="flex items-center px-3 py-2 rounded-md cursor-pointer text-gray-700 hover:bg-gray-100">
+					<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+						<path
+							strokeLinecap="round"
+							strokeLinejoin="round"
+							strokeWidth={2}
+							d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
+						/>
+						<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+					</svg>
+					{!isCollapsed && <span>Settings</span>}
 				</div>
 			</div>
-		</nav>
+
+			{/* Bottom section - Help & Logout */}
+			<div className="absolute bottom-0 left-0 right-0 p-3 space-y-2">
+				<div className="flex items-center px-3 py-2 rounded-md cursor-pointer text-gray-700 hover:bg-gray-100">
+					<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+						<path
+							strokeLinecap="round"
+							strokeLinejoin="round"
+							strokeWidth={2}
+							d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+						/>
+					</svg>
+					{!isCollapsed && <span>Help & Information</span>}
+				</div>
+
+				<div className="flex items-center px-3 py-2 rounded-md cursor-pointer text-gray-700 hover:bg-gray-100" onClick={signOut}>
+					<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+						<path
+							strokeLinecap="round"
+							strokeLinejoin="round"
+							strokeWidth={2}
+							d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
+						/>
+					</svg>
+					{!isCollapsed && <span>Log Out</span>}
+				</div>
+			</div>
+		</div>
 	);
 };
 

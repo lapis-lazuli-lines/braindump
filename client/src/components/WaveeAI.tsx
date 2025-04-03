@@ -4,8 +4,6 @@ import Sidebar from "./wavee/Sidebar";
 import WelcomeScreen from "./wavee/WelcomeScreen";
 import ContentCreator from "./wavee/ContentCreator";
 import WorkflowCreator from "./wavee/WorkflowCreator";
-import MobileHeader from "./wavee/MobileHeader";
-import SkipToContent from "@/components/common/SkipToContent";
 import { useAnnouncement } from "@/hooks/useAnnouncement";
 import { performance } from "@/utils/performance";
 
@@ -58,19 +56,13 @@ const WaveeAI: React.FC = () => {
 	return (
 		<>
 			<LiveRegion />
-			<SkipToContent targetId="main-content" />
 
-			<div className="flex h-screen bg-[#1e0936] text-gray-800 overflow-hidden">
+			<div className="flex h-screen bg-[#1e0936] overflow-hidden">
 				{/* Sidebar with role */}
-				<aside role="navigation" aria-label="Main Navigation" className={mobileMenuOpen ? "block z-30" : "hidden md:block"}>
-					<Sidebar visible={true} onContentCreator={openContentCreator} onWorkflowCreator={openWorkflowCreator} currentScreen={currentScreen} />
-				</aside>
+				<Sidebar visible={true} onContentCreator={openContentCreator} onWorkflowCreator={openWorkflowCreator} currentScreen={currentScreen} />
 
 				{/* Main Content */}
-				<main id="main-content" tabIndex={-1} className="flex-1 flex flex-col overflow-hidden bg-white rounded-l-3xl">
-					{/* Mobile Header */}
-					<MobileHeader onMenuToggle={toggleMobileMenu} isMenuOpen={mobileMenuOpen} />
-
+				<main className="flex-1 flex flex-col overflow-hidden bg-[#1e0936]">
 					{/* Content Area - Render based on current screen */}
 					<div className="flex-1 overflow-y-auto">{renderScreen()}</div>
 				</main>

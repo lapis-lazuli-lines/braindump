@@ -1,6 +1,7 @@
 // client/src/components/workflow/custom/StyledNodes.tsx
-import React from "react";
+import React, { useState } from "react";
 import { Handle, Position, NodeProps } from "reactflow";
+import NodeOptionsMenu from "./NodeOptionsMenu";
 
 // Base styled node that maintains consistent size
 interface StyledNodeProps extends NodeProps {
@@ -45,6 +46,29 @@ const workflowTheme = {
 };
 
 export const StyledNode: React.FC<StyledNodeProps> = ({ id, data, selected, title, icon, color, borderColor, children, handles = {} }) => {
+	// State for options menu
+	const [showOptions, setShowOptions] = useState(false);
+	const [menuPosition, setMenuPosition] = useState<{ x: number; y: number } | null>(null);
+
+	// Handle opening the options menu
+	const handleOpenOptions = (e: React.MouseEvent) => {
+		e.stopPropagation(); // Prevent node selection when clicking options
+		const rect = e.currentTarget.getBoundingClientRect();
+		setMenuPosition({ x: rect.left, y: rect.bottom });
+		setShowOptions(true);
+	};
+
+	// Handle closing the options menu
+	const handleCloseOptions = () => {
+		setShowOptions(false);
+	};
+
+// For now, we'll just close the menu and console log
+		// The actual delete functionality would depend on your app's architecture
+		console.log(`Delete node ${id}`);
+		setShowOptions(false);
+	};
+
 	return (
 		<div
 			className="relative bg-white rounded-xl shadow-lg overflow-hidden transition-all duration-200"
@@ -52,7 +76,19 @@ export const StyledNode: React.FC<StyledNodeProps> = ({ id, data, selected, titl
 				width: "280px",
 				borderWidth: "2px",
 				borderStyle: "solid",
-				borderColor: selected ? `var(--${borderColor})` : `var(--${borderColor})`,
+				borderColor: selected ? `var(--${borderColor})` (
+					<div>
+						<div className="font-medium text-gray-700 mb-2">Instructions:</div>
+						<div className="flex bg-gray-50 p-3 rounded border border-gray-200 text-gray-600">
+							<div className="mr-2 text-amber-500">
+								<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+									<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+								</svg>
+							</div>
+							<div className="text-sm flex-1">Select a condition to evaluate</div>
+						</div>
+					</div>
+				) `var(--${borderColor})`,
 				boxShadow: selected ? `0 0 0 2px var(--${borderColor})` : "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)",
 				transform: selected ? "scale(1.02)" : "scale(1)",
 			}}>
@@ -65,6 +101,16 @@ export const StyledNode: React.FC<StyledNodeProps> = ({ id, data, selected, titl
 					boxShadow: "0 1px 3px rgba(0,0,0,0.12)",
 				}}>
 				<div className="flex items-center">
+					{/* 3-dot menu icon */}
+					<div 
+						className="mr-2 w-6 h-6 flex items-center justify-center bg-white bg-opacity-10 hover:bg-opacity-30 rounded-full cursor-pointer transition-colors"
+						onClick={handleOpenOptions}
+						title="Options"
+					>
+						<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+							<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
+						</svg>
+					</div>
 					<div className="mr-2 flex-shrink-0 w-8 h-8 flex items-center justify-center bg-white bg-opacity-20 rounded-full">{icon}</div>
 					<div className="truncate font-semibold">{title}</div>
 				</div>
@@ -155,6 +201,17 @@ export const StyledNode: React.FC<StyledNodeProps> = ({ id, data, selected, titl
 						zIndex: 10,
 					}}
 					className="hover:scale-125 hover:shadow-md"
+				/>
+			)}
+
+			{/* Options Menu */}
+			{showOptions && menuPosition && (
+				<NodeOptionsMenu 
+					isOpen={showOptions}
+					onClose={handleCloseOptions}
+					onEdit={handleEdit}
+					onDelete={handleDelete}
+					position={menuPosition}
 				/>
 			)}
 		</div>
@@ -444,93 +501,4 @@ export const ConditionalNode: React.FC<NodeProps> = (props) => {
 							</div>
 						</div>
 					</div>
-				) : (
-					<div>
-						<div className="font-medium text-gray-700 mb-2">Instructions:</div>
-						<div className="flex bg-gray-50 p-3 rounded border border-gray-200 text-gray-600">
-							<div className="mr-2 text-amber-500">
-								<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-									<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-								</svg>
-							</div>
-							<div className="text-sm flex-1">Select a condition to evaluate</div>
-						</div>
-					</div>
-				)}
-
-				{/* Show result indicator if the node has been evaluated */}
-				{data.result !== undefined && (
-					<div
-						className="mt-3 p-2 rounded"
-						style={{
-							backgroundColor: data.result ? "rgba(16, 185, 129, 0.1)" : "rgba(239, 68, 68, 0.1)",
-							color: data.result ? "rgb(6, 95, 70)" : "rgb(153, 27, 27)",
-						}}>
-						<div className="flex items-center">
-							<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" viewBox="0 0 20 20" fill="currentColor">
-								{data.result ? (
-									<path
-										fillRule="evenodd"
-										d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
-										clipRule="evenodd"
-									/>
-								) : (
-									<path
-										fillRule="evenodd"
-										d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
-										clipRule="evenodd"
-									/>
-								)}
-							</svg>
-							<div className="text-xs font-medium">Evaluated: {data.result ? "True" : "False"}</div>
-						</div>
-					</div>
-				)}
-			</div>
-		</StyledNode>
-	);
-};
-
-// Add CSS variables for the workflow theme
-const CSSVariablesStyle = () => {
-	return (
-		<style>
-			{`
-			:root {
-				--ideas-primary: ${workflowTheme.ideas.primary};
-				--ideas-primary-dark: ${workflowTheme.ideas.primary};
-				--ideas-secondary: ${workflowTheme.ideas.secondary};
-				--ideas-light: ${workflowTheme.ideas.secondary};
-				--ideas-border: ${workflowTheme.ideas.border};
-				
-				--draft-primary: ${workflowTheme.draft.primary};
-				--draft-primary-dark: ${workflowTheme.draft.primary};
-				--draft-secondary: ${workflowTheme.draft.secondary};
-				--draft-light: ${workflowTheme.draft.secondary};
-				--draft-border: ${workflowTheme.draft.border};
-				
-				--media-primary: ${workflowTheme.media.primary};
-				--media-primary-dark: ${workflowTheme.media.primary};
-				--media-secondary: ${workflowTheme.media.secondary};
-				--media-light: ${workflowTheme.media.secondary};
-				--media-border: ${workflowTheme.media.border};
-				
-				--platform-primary: ${workflowTheme.platform.primary};
-				--platform-primary-dark: ${workflowTheme.platform.primary};
-				--platform-secondary: ${workflowTheme.platform.secondary};
-				--platform-light: ${workflowTheme.platform.secondary};
-				--platform-border: ${workflowTheme.platform.border};
-				
-				--conditional-primary: ${workflowTheme.conditional.primary};
-				--conditional-primary-dark: ${workflowTheme.conditional.primary};
-				--conditional-secondary: ${workflowTheme.conditional.secondary};
-				--conditional-light: ${workflowTheme.conditional.secondary};
-				--conditional-border: ${workflowTheme.conditional.border};
-			}
-			`}
-		</style>
-	);
-};
-
-// Export the CSS variables component to be used in the App
-export { CSSVariablesStyle };
+				) :

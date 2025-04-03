@@ -18,16 +18,8 @@ interface WorkflowState {
 	getSavedWorkflows: () => any[];
 }
 
-// Initial workflow with a trigger node
-const initialNodes: Node[] = [
-	{
-		id: "trigger",
-		type: "triggerNode",
-		position: { x: 250, y: 50 },
-		data: { label: "Trigger" },
-	},
-];
-
+// Initial workflow with empty nodes/edges
+const initialNodes: Node[] = [];
 const initialEdges: Edge[] = [];
 
 export const useWorkflowStore = create<WorkflowState>((set, get) => ({
@@ -49,7 +41,13 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
 
 	onConnect: (connection: Connection) => {
 		set({
-			edges: addEdge(connection, get().edges),
+			edges: addEdge(
+				{
+					...connection,
+					type: "animated", // Always use animated edges
+				},
+				get().edges
+			),
 		});
 	},
 
@@ -83,8 +81,8 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
 
 	resetWorkflow: () => {
 		set({
-			nodes: initialNodes,
-			edges: initialEdges,
+			nodes: [],
+			edges: [],
 			selectedNode: null,
 		});
 	},

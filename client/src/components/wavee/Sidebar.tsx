@@ -39,39 +39,34 @@ const Sidebar: React.FC<SidebarProps> = ({ visible = true, onContentCreator, onW
 			{/* Logo area with fixed positioning */}
 			<div className="h-16 flex items-center px-4">
 				<Logo size="md" variant="white" showText={!isCollapsed} />
-
-				{/* Collapse toggle button - subtle design */}
-				<button
-					onClick={toggleCollapsed}
-					className={`absolute right-3 top-5 p-1 rounded-md text-gray-400 hover:text-white transition-colors ${
-						isCollapsed ? "bg-transparent" : "bg-[#3d1261] bg-opacity-40 hover:bg-opacity-60"
-					}`}
-					aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}>
-					<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-						<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={isCollapsed ? "M9 5l7 7-7 7" : "M15 19l-7-7 7-7"} />
-					</svg>
-				</button>
 			</div>
 
 			{/* Navigation items with fixed-width icons and position */}
-			<div className="space-y-1 px-3 mt-6">
-				{/* Dashboard */}
+			<div className="space-y-1 px-4 mt-3">
+				{/* Toggle button - above home icon */}
+				<div className="mb-3 flex items-center justify-end pr-2">
+					<button
+						onClick={toggleCollapsed}
+						className="w-8 h-8 flex items-center justify-center rounded-full cursor-pointer text-gray-400 hover:text-white hover:bg-[#3d1261] bg-opacity-40 transition-all duration-200"
+						aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}>
+						<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+							<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={isCollapsed ? "M9 5l7 7-7 7" : "M15 19l-7-7 7-7"} />
+						</svg>
+					</button>
+				</div>
+
+				{/* Dashboard - with simplified home icon */}
 				<div
 					className={`flex items-center py-3 rounded-xl cursor-pointer transition-colors ${
 						isActive("welcome") ? "bg-[#3d1261] text-white" : "text-gray-300 hover:bg-[#3d1261] hover:text-white"
 					}`}
 					onClick={() => {}}>
-					<div className="w-12 flex justify-center">
+					<div className="w-12 flex justify-center items-center">
 						<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-							<path
-								strokeLinecap="round"
-								strokeLinejoin="round"
-								strokeWidth={2}
-								d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6-10h4m-4 10h4m-10 0h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2z"
-							/>
+							<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l9-9 9 9M5 10v10a1 1 0 001 1h12a1 1 0 001-1V10" />
 						</svg>
 					</div>
-					<span className={`font-medium transition-opacity duration-200 ${isCollapsed ? "opacity-0 w-0" : "opacity-100"}`}>Dashboard</span>
+					<span className={`font-medium transition-opacity duration-200 ${isCollapsed ? "opacity-0 w-0 overflow-hidden" : "opacity-100"}`}>Dashboard</span>
 				</div>
 
 				{/* Content Creator */}
@@ -97,16 +92,18 @@ const Sidebar: React.FC<SidebarProps> = ({ visible = true, onContentCreator, onW
 								/>
 							</svg>
 						</div>
-						<span className={`font-medium flex-grow transition-opacity duration-200 ${isCollapsed ? "opacity-0 w-0" : "opacity-100"}`}>Content</span>
+						<span className={`font-medium flex-grow transition-opacity duration-200 ${isCollapsed ? "opacity-0 w-0 overflow-hidden" : "opacity-100"}`}>Content</span>
 						{!isCollapsed && (
-							<svg
-								xmlns="http://www.w3.org/2000/svg"
-								className={`h-5 w-5 transition-transform ${isExpanded("content") ? "rotate-180" : ""}`}
-								fill="none"
-								viewBox="0 0 24 24"
-								stroke="currentColor">
-								<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-							</svg>
+							<div className="pr-2">
+								<svg
+									xmlns="http://www.w3.org/2000/svg"
+									className={`h-5 w-5 transition-transform ${isExpanded("content") ? "rotate-180" : ""}`}
+									fill="none"
+									viewBox="0 0 24 24"
+									stroke="currentColor">
+									<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+								</svg>
+							</div>
 						)}
 					</div>
 
@@ -117,13 +114,13 @@ const Sidebar: React.FC<SidebarProps> = ({ visible = true, onContentCreator, onW
 									isActive("content") ? "bg-[#5a2783] text-white" : "text-gray-400 hover:bg-[#5a2783] hover:text-white"
 								}`}
 								onClick={onContentCreator}>
-								<span className="text-sm">Create Content</span>
+								<span className="text-sm font-light tracking-wide">Create Content</span>
 							</div>
 							<div className="flex items-center py-2 px-3 rounded-lg text-gray-400 hover:bg-[#5a2783] hover:text-white cursor-pointer transition-colors">
-								<span className="text-sm">Drafts</span>
+								<span className="text-sm font-light tracking-wide">Drafts</span>
 							</div>
 							<div className="flex items-center py-2 px-3 rounded-lg text-gray-400 hover:bg-[#5a2783] hover:text-white cursor-pointer transition-colors">
-								<span className="text-sm">Published</span>
+								<span className="text-sm font-light tracking-wide">Published</span>
 							</div>
 						</div>
 					)}
@@ -152,16 +149,18 @@ const Sidebar: React.FC<SidebarProps> = ({ visible = true, onContentCreator, onW
 								/>
 							</svg>
 						</div>
-						<span className={`font-medium flex-grow transition-opacity duration-200 ${isCollapsed ? "opacity-0 w-0" : "opacity-100"}`}>Workflows</span>
+						<span className={`font-medium flex-grow transition-opacity duration-200 ${isCollapsed ? "opacity-0 w-0 overflow-hidden" : "opacity-100"}`}>Workflows</span>
 						{!isCollapsed && (
-							<svg
-								xmlns="http://www.w3.org/2000/svg"
-								className={`h-5 w-5 transition-transform ${isExpanded("workflows") ? "rotate-180" : ""}`}
-								fill="none"
-								viewBox="0 0 24 24"
-								stroke="currentColor">
-								<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-							</svg>
+							<div className="pr-2">
+								<svg
+									xmlns="http://www.w3.org/2000/svg"
+									className={`h-5 w-5 transition-transform ${isExpanded("workflows") ? "rotate-180" : ""}`}
+									fill="none"
+									viewBox="0 0 24 24"
+									stroke="currentColor">
+									<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+								</svg>
+							</div>
 						)}
 					</div>
 
@@ -172,13 +171,13 @@ const Sidebar: React.FC<SidebarProps> = ({ visible = true, onContentCreator, onW
 									isActive("workflow") ? "bg-[#5a2783] text-white" : "text-gray-400 hover:bg-[#5a2783] hover:text-white"
 								}`}
 								onClick={onWorkflowCreator}>
-								<span className="text-sm">Create Workflow</span>
+								<span className="text-sm font-light tracking-wide">Create Workflow</span>
 							</div>
 							<div className="flex items-center py-2 px-3 rounded-lg text-gray-400 hover:bg-[#5a2783] hover:text-white cursor-pointer transition-colors">
-								<span className="text-sm">Saved Workflows</span>
+								<span className="text-sm font-light tracking-wide">Saved Workflows</span>
 							</div>
 							<div className="flex items-center py-2 px-3 rounded-lg text-gray-400 hover:bg-[#5a2783] hover:text-white cursor-pointer transition-colors">
-								<span className="text-sm">Templates</span>
+								<span className="text-sm font-light tracking-wide">Templates</span>
 							</div>
 						</div>
 					)}
@@ -197,12 +196,20 @@ const Sidebar: React.FC<SidebarProps> = ({ visible = true, onContentCreator, onW
 							<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
 						</svg>
 					</div>
-					<span className={`font-medium transition-opacity duration-200 ${isCollapsed ? "opacity-0 w-0" : "opacity-100"}`}>Settings</span>
+					<span className={`font-medium transition-opacity duration-200 ${isCollapsed ? "opacity-0 w-0 overflow-hidden" : "opacity-100"}`}>Settings</span>
 				</div>
 			</div>
 
-			{/* Bottom section - Help & Logout */}
-			<div className="absolute bottom-5 left-0 right-0 px-3 space-y-1">
+			{/* Bottom section - Theme toggle, Help & Logout */}
+			<div className="absolute bottom-5 left-0 right-0 px-4 space-y-3">
+				{/* Theme toggle */}
+				{!isCollapsed && (
+					<div className="flex items-center justify-between p-2 bg-[#3d1261] bg-opacity-30 rounded-xl">
+						<button className="px-3 py-1.5 bg-white text-[#1e0936] text-sm font-medium rounded-md shadow-sm">Light</button>
+						<button className="px-3 py-1.5 text-gray-300 text-sm font-medium rounded-md">Dark</button>
+					</div>
+				)}
+
 				{/* Help */}
 				<div className="flex items-center py-3 rounded-xl cursor-pointer text-gray-300 hover:bg-[#3d1261] hover:text-white transition-colors">
 					<div className="w-12 flex justify-center">
@@ -215,21 +222,32 @@ const Sidebar: React.FC<SidebarProps> = ({ visible = true, onContentCreator, onW
 							/>
 						</svg>
 					</div>
-					<span className={`font-medium transition-opacity duration-200 ${isCollapsed ? "opacity-0 w-0" : "opacity-100"}`}>Help</span>
+					<span className={`font-medium transition-opacity duration-200 ${isCollapsed ? "opacity-0 w-0 overflow-hidden" : "opacity-100"}`}>Help</span>
 				</div>
 
-				{/* User Profile (Show only when expanded) */}
-				{!isCollapsed && (
-					<div className="p-3 mt-2 mb-1 bg-[#3d1261] bg-opacity-40 rounded-xl flex items-center">
+				{/* User Profile */}
+				{!isCollapsed ? (
+					<div className="p-3 bg-[#3d1261] bg-opacity-40 rounded-xl flex items-center">
 						<div className="w-8 h-8 rounded-full flex items-center justify-center overflow-hidden bg-[#e03885]">
 							{userImageUrl ? (
 								<img src={userImageUrl} alt={userFullName || ""} className="w-full h-full object-cover" />
 							) : (
-								<span className="text-white font-medium">{userFullName?.charAt(0) || "U"}</span>
+								<span className="text-white font-medium">{userFullName?.charAt(0) || "E"}</span>
 							)}
 						</div>
 						<div className="ml-3 overflow-hidden">
-							<div className="text-sm font-medium text-white truncate">{userFullName || "User"}</div>
+							<p className="text-sm font-medium text-white truncate">{userFullName || "Emilia Caitlin"}</p>
+							<p className="text-xs text-gray-300 truncate">hey@unspace.agency</p>
+						</div>
+					</div>
+				) : (
+					<div className="flex justify-center">
+						<div className="w-8 h-8 rounded-full flex items-center justify-center overflow-hidden bg-[#e03885]">
+							{userImageUrl ? (
+								<img src={userImageUrl} alt={userFullName || ""} className="w-full h-full object-cover" />
+							) : (
+								<span className="text-white font-medium">{userFullName?.charAt(0) || "E"}</span>
+							)}
 						</div>
 					</div>
 				)}
@@ -246,7 +264,7 @@ const Sidebar: React.FC<SidebarProps> = ({ visible = true, onContentCreator, onW
 							/>
 						</svg>
 					</div>
-					<span className={`font-medium transition-opacity duration-200 ${isCollapsed ? "opacity-0 w-0" : "opacity-100"}`}>Log Out</span>
+					<span className={`font-medium transition-opacity duration-200 ${isCollapsed ? "opacity-0 w-0 overflow-hidden" : "opacity-100"}`}>Log Out</span>
 				</div>
 			</div>
 		</div>

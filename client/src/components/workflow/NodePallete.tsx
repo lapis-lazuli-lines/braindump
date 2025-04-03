@@ -1,4 +1,4 @@
-// client/src/components/workflow/NodePalette.tsx
+// client/src/components/workflow/NodePallete.tsx
 import React from "react";
 
 interface NodeTypeItem {
@@ -6,6 +6,7 @@ interface NodeTypeItem {
 	label: string;
 	description: string;
 	icon: React.ReactNode;
+	color: string;
 }
 
 const nodeTypes: NodeTypeItem[] = [
@@ -13,6 +14,7 @@ const nodeTypes: NodeTypeItem[] = [
 		type: "ideaNode",
 		label: "Content Ideas",
 		description: "Generate content ideas based on a topic",
+		color: "rgb(124, 58, 237)", // purple-600
 		icon: (
 			<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
 				<path
@@ -28,6 +30,7 @@ const nodeTypes: NodeTypeItem[] = [
 		type: "draftNode",
 		label: "Draft Generator",
 		description: "Create content draft from selected idea",
+		color: "rgb(219, 39, 119)", // pink-600
 		icon: (
 			<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
 				<path
@@ -43,6 +46,7 @@ const nodeTypes: NodeTypeItem[] = [
 		type: "mediaNode",
 		label: "Add Media",
 		description: "Select images or videos for your content",
+		color: "rgb(37, 99, 235)", // blue-600
 		icon: (
 			<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
 				<path
@@ -58,6 +62,7 @@ const nodeTypes: NodeTypeItem[] = [
 		type: "platformNode",
 		label: "Select Platform",
 		description: "Choose where to publish your content",
+		color: "rgb(124, 58, 237)", // purple-600
 		icon: (
 			<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
 				<path
@@ -73,6 +78,7 @@ const nodeTypes: NodeTypeItem[] = [
 		type: "conditionalNode",
 		label: "Conditional",
 		description: "Branch workflow based on conditions",
+		color: "rgb(245, 158, 11)", // amber-500
 		icon: (
 			<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
 				<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 9l4-4 4 4m0 6l-4 4-4-4" />
@@ -88,17 +94,19 @@ const NodePalette: React.FC = () => {
 	};
 
 	return (
-		<div className="workflow-nodes">
+		<div className="workflow-nodes p-4">
 			<h3 className="text-lg font-bold mb-4">Node Library</h3>
 			<div className="space-y-3">
 				{nodeTypes.map((nodeType) => (
 					<div
 						key={nodeType.type}
-						className="bg-white p-3 rounded-lg shadow cursor-grab border border-gray-200 hover:border-[#5a2783] transition-colors"
+						className="bg-white p-3 rounded-lg shadow cursor-grab border border-gray-200 hover:border-gray-400 transition-colors"
 						onDragStart={(e) => onDragStart(e, nodeType.type)}
 						draggable>
 						<div className="flex items-center">
-							<div className="bg-[#5a2783] bg-opacity-10 p-2 rounded-md text-[#5a2783]">{nodeType.icon}</div>
+							<div className="p-2 rounded-md text-white" style={{ backgroundColor: nodeType.color }}>
+								{nodeType.icon}
+							</div>
 							<div className="ml-3">
 								<h4 className="font-medium text-gray-800">{nodeType.label}</h4>
 								<p className="text-xs text-gray-500">{nodeType.description}</p>

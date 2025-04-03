@@ -1,13 +1,7 @@
 // client/src/components/workflow/customNodes/index.tsx
-import TriggerNode from "./TriggerNode";
-import IdeaNode from "./IdeaNode";
-import DraftNode from "./DraftNode";
-import MediaNode from "./MediaNode";
-import PlatformNode from "./PlatformNode";
-import ConditionalNode from "./ConditionalNode";
+import { IdeaNode, DraftNode, MediaNode, PlatformNode, ConditionalNode } from "../custom/StyledNodes";
 
 export const nodeTypes = {
-	triggerNode: TriggerNode,
 	ideaNode: IdeaNode,
 	draftNode: DraftNode,
 	mediaNode: MediaNode,

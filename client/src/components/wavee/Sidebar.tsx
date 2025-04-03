@@ -8,10 +8,11 @@ import VisuallyHidden from "@/components/common/VisuallyHidden";
 interface SidebarProps {
 	visible: boolean;
 	onContentCreator?: () => void;
+	onWorkflowCreator?: () => void;
 	currentScreen?: string;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ visible, onContentCreator, currentScreen }) => {
+const Sidebar: React.FC<SidebarProps> = ({ visible, onContentCreator, onWorkflowCreator, currentScreen }) => {
 	// Use auth context to get user data
 	const { userFullName, userImageUrl } = useAuthContext();
 	const { signOut } = useClerk();
@@ -57,6 +58,20 @@ const Sidebar: React.FC<SidebarProps> = ({ visible, onContentCreator, currentScr
 						<path fillRule="evenodd" d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clipRule="evenodd" />
 					</svg>
 					<span>Content Creator</span>
+				</button>
+
+				{/* Workflow Creator Button */}
+				<button
+					onClick={onWorkflowCreator}
+					className={`w-full flex items-center justify-center gap-2 py-3 px-4 rounded-full transition-colors ${
+						currentScreen === "workflow" ? "bg-[#6b2f9c] text-white" : "bg-[#5a2783] hover:bg-[#6b2f9c] text-white"
+					}`}
+					aria-label="Open workflow creator"
+					aria-current={currentScreen === "workflow" ? "page" : undefined}>
+					<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+						<path fillRule="evenodd" d="M3 5a2 2 0 012-2h10a2 2 0 012 2v10a2 2 0 01-2 2H5a2 2 0 01-2-2V5zm11 1H6v8l4-2 4 2V6z" clipRule="evenodd" />
+					</svg>
+					<span>Workflow Creator</span>
 				</button>
 			</div>
 

@@ -3,13 +3,14 @@ import React, { useState, useEffect } from "react";
 import Sidebar from "./wavee/Sidebar";
 import WelcomeScreen from "./wavee/WelcomeScreen";
 import ContentCreator from "./wavee/ContentCreator";
+import WorkflowCreator from "./wavee/WorkflowCreator";
 import MobileHeader from "./wavee/MobileHeader";
 import SkipToContent from "@/components/common/SkipToContent";
 import { useAnnouncement } from "@/hooks/useAnnouncement";
 import { performance } from "@/utils/performance";
 
 // Define the possible screens
-type Screen = "welcome" | "content";
+type Screen = "welcome" | "content" | "workflow";
 
 const WaveeAI: React.FC = () => {
 	const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -35,15 +36,22 @@ const WaveeAI: React.FC = () => {
 		announce("Content creator opened");
 	};
 
+	const openWorkflowCreator = () => {
+		setCurrentScreen("workflow");
+		announce("Workflow creator opened");
+	};
+
 	// Render the current screen based on state
 	const renderScreen = () => {
 		switch (currentScreen) {
 			case "welcome":
-				return <WelcomeScreen onOpenContentCreator={openContentCreator} />;
+				return <WelcomeScreen onOpenContentCreator={openContentCreator} onOpenWorkflowCreator={openWorkflowCreator} />;
 			case "content":
 				return <ContentCreator />;
+			case "workflow":
+				return <WorkflowCreator />;
 			default:
-				return <WelcomeScreen onOpenContentCreator={openContentCreator} />;
+				return <WelcomeScreen onOpenContentCreator={openContentCreator} onOpenWorkflowCreator={openWorkflowCreator} />;
 		}
 	};
 
@@ -55,7 +63,7 @@ const WaveeAI: React.FC = () => {
 			<div className="flex h-screen bg-[#1e0936] text-gray-800 overflow-hidden">
 				{/* Sidebar with role */}
 				<aside role="navigation" aria-label="Main Navigation" className={mobileMenuOpen ? "block z-30" : "hidden md:block"}>
-					<Sidebar visible={true} onContentCreator={openContentCreator} currentScreen={currentScreen} />
+					<Sidebar visible={true} onContentCreator={openContentCreator} onWorkflowCreator={openWorkflowCreator} currentScreen={currentScreen} />
 				</aside>
 
 				{/* Main Content */}

@@ -6,9 +6,22 @@ import VisuallyHidden from "@/components/common/VisuallyHidden";
 interface MobileHeaderProps {
 	onMenuToggle: () => void;
 	isMenuOpen: boolean;
+	currentScreen?: string;
 }
 
-const MobileHeader: React.FC<MobileHeaderProps> = ({ onMenuToggle, isMenuOpen }) => {
+const MobileHeader: React.FC<MobileHeaderProps> = ({ onMenuToggle, isMenuOpen, currentScreen }) => {
+	// Generate appropriate title based on current screen
+	const getTitle = () => {
+		switch (currentScreen) {
+			case "content":
+				return "Content Creator";
+			case "workflow":
+				return "Workflow Creator";
+			default:
+				return "WaveeAI";
+		}
+	};
+
 	return (
 		<header className="md:hidden bg-[#2e0e4b] p-4 flex items-center justify-between">
 			<button
@@ -29,6 +42,7 @@ const MobileHeader: React.FC<MobileHeaderProps> = ({ onMenuToggle, isMenuOpen })
 			</button>
 			<div className="flex items-center">
 				<Logo size="sm" variant="white" />
+				<span className="ml-2 text-white font-medium">{getTitle()}</span>
 			</div>
 			<div className="w-6"></div> {/* Empty div for flex alignment */}
 		</header>

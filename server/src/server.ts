@@ -7,6 +7,7 @@ import contentRoutes from "./routes/contentRoutes";
 import imageRoutes from "./routes/imageRoutes";
 import mediaRoutes from "./routes/mediaRoutes";
 import { initializeStorage } from "./utils/storageConfig";
+import socialRoutes from "./routes/socialRoutes";
 
 const app: Express = express();
 const PORT = process.env.PORT || 3001;
@@ -26,6 +27,7 @@ app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 app.use("/api/content", contentRoutes);
 app.use("/api/images", imageRoutes);
 app.use("/api/media", mediaRoutes);
+app.use("/api/social", socialRoutes);
 
 // --- Health check endpoint ---
 app.get("/api/health", (req: Request, res: Response) => {

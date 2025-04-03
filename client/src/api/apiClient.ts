@@ -3,6 +3,7 @@ import axios, { AxiosRequestConfig, CancelTokenSource } from "axios";
 import { performance } from "@/utils/performance";
 import { SavedDraft, CombinedContent } from "@/types/content";
 import { MediaFile } from "@/types/media";
+import { socialApi } from "./socialApi";
 
 // Track active requests for cancellation
 const activeRequests = new Map<string, CancelTokenSource>();
@@ -358,5 +359,6 @@ export default {
 	content: contentApi,
 	images: imageApi,
 	media: mediaApi,
+	social: socialApi,
 	cancelAllRequests,
 };

@@ -33,7 +33,7 @@ const ModernWorkflowCreator: React.FC = () => {
 	const [executionResult, setExecutionResult] = useState<Record<string, any> | null>(null);
 
 	// Workflow store hooks
-	const { nodes, edges, onNodesChange, onEdgesChange, onConnect, addNode, selectedNode, setSelectedNode, updateNodeData, resetWorkflow } = useWorkflowStore();
+	const { nodes, edges, onNodesChange, onEdgesChange, onConnect, addNode, selectedNode, setSelectedNode, updateNodeData, removeNode, resetWorkflow } = useWorkflowStore();
 
 	// Handle node drag from palette to canvas
 	const onDragOver = useCallback((event: React.DragEvent<HTMLDivElement>) => {
@@ -81,6 +81,30 @@ const ModernWorkflowCreator: React.FC = () => {
 		setSelectedNode(null);
 	}, [setSelectedNode]);
 
+	// Handle node edit
+	const handleEditNode = useCallback(
+		(nodeId: string) => {
+			// Find the node
+			const node = nodes.find((n) => n.id === nodeId);
+			if (node) {
+				// Select the node to show its details panel
+				setSelectedNode(node);
+			}
+		},
+		[nodes, setSelectedNode]
+	);
+
+	// Handle node deletion
+	const handleDeleteNode = useCallback(
+		(nodeId: string) => {
+			if (confirm("Are you sure you want to delete this node?")) {
+				removeNode(nodeId);
+				setSelectedNode(null);
+			}
+		},
+		[removeNode, setSelectedNode]
+	);
+
 	// Execute the workflow
 	const executeWorkflow = useCallback(async () => {
 		setIsExecuting(true);
@@ -103,6 +127,22 @@ const ModernWorkflowCreator: React.FC = () => {
 		}
 	}, [resetWorkflow]);
 
+	// We need to pass these callbacks to each node component
+	// This allows the 3-dots menu to trigger these functions
+	const nodeInteractionHandlers = {
+		onEdit: handleEditNode,
+		onDelete: handleDeleteNode,
+	};
+
+	// Deep merge the callbacks into the node data
+	const nodesWithHandlers = nodes.map((node) => ({
+		...node,
+		data: {
+			...node.data,
+			...nodeInteractionHandlers,
+		},
+	}));
+
 	return (
 		<div className="flex h-screen bg-gray-50 overflow-hidden">
 			{/* Include the CSS variables for our workflow theme */}
@@ -121,7 +161,7 @@ const ModernWorkflowCreator: React.FC = () => {
 			<div className="flex-1 relative" ref={reactFlowWrapper}>
 				<ReactFlowProvider>
 					<ReactFlow
-						nodes={nodes}
+						nodes={nodesWithHandlers}
 						edges={edges}
 						nodeTypes={nodeTypes}
 						edgeTypes={edgeTypes}
@@ -278,7 +318,7 @@ const ModernWorkflowCreator: React.FC = () => {
 			</div>
 
 			{/* Right panel - Node details */}
-			<NodeDetailsPanel selectedNode={selectedNode} updateNodeData={updateNodeData} />
+			<NodeDetailsPanel selectedNode={selectedNode} updateNodeData={updateNodeData} onDeleteNode={handleDeleteNode} />
 
 			{/* Additional CSS for workflow canvas */}
 			<style>

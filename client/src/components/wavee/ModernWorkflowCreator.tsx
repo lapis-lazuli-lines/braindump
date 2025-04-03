@@ -1,12 +1,11 @@
 // client/src/components/wavee/ModernWorkflowCreator.tsx
 import React, { useState, useCallback, useRef } from "react";
-import ReactFlow, { ReactFlowProvider, MiniMap, Controls, Background, Panel, Edge, Connection, NodeTypes, EdgeTypes, Node } from "reactflow";
+import ReactFlow, { ReactFlowProvider, MiniMap, Controls, Background, Panel, NodeTypes, EdgeTypes, Node } from "reactflow";
 import "reactflow/dist/style.css";
 
 // Import our custom components
 import NodePalette from "../workflow/NodePallete";
 import { useWorkflowStore } from "../workflow/workflowStore";
-import { updateNodeConnections } from "../workflow/nodeConnections";
 import TogglableGuide from "../workflow/custom/TogglableGuide";
 import NodeDetailsPanel from "../workflow/custom/NodeDetailsPanel";
 import AnimatedEdge from "../workflow/custom/AnimatedEdge";
@@ -245,7 +244,7 @@ const ModernWorkflowCreator: React.FC = () => {
 
 						{/* Execution results panel */}
 						{executionResult && (
-							<Panel position="bottom" className="bg-white shadow-lg rounded-t-lg p-4 border-t border-gray-200 max-h-32 overflow-y-auto">
+							<Panel position="bottom-center" className="bg-white shadow-lg rounded-t-lg p-4 border-t border-gray-200 max-h-32 overflow-y-auto">
 								<h3 className="font-medium text-gray-800 mb-2">Execution Results</h3>
 								<button
 									onClick={() => setExecutionResult(null)}
@@ -282,7 +281,8 @@ const ModernWorkflowCreator: React.FC = () => {
 			<NodeDetailsPanel selectedNode={selectedNode} updateNodeData={updateNodeData} />
 
 			{/* Additional CSS for workflow canvas */}
-			<style jsx global>{`
+			<style>
+				{`
 				.react-flow__handle {
 					opacity: 0.8;
 					transition: opacity 0.2s, transform 0.2s;
@@ -329,7 +329,8 @@ const ModernWorkflowCreator: React.FC = () => {
 					animation: pulse 1.5s infinite;
 					opacity: 1;
 				}
-			`}</style>
+			`}
+			</style>
 		</div>
 	);
 };

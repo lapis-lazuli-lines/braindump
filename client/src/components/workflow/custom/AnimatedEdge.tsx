@@ -2,9 +2,7 @@
 import React from "react";
 import { EdgeProps, getSmoothStepPath, useReactFlow } from "reactflow";
 
-// The EdgeProps type in ReactFlow doesn't explicitly include sourceHandle
-// We need to access it through the data
-const AnimatedEdge: React.FC<EdgeProps> = ({ id, source, target, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, data, style = {} }) => {
+const AnimatedEdge: React.FC<EdgeProps> = ({ id, source, target, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, sourceHandleId, style = {} }) => {
 	const { getNode } = useReactFlow();
 	const sourceNode = getNode(source);
 
@@ -12,17 +10,11 @@ const AnimatedEdge: React.FC<EdgeProps> = ({ id, source, target, sourceX, source
 	let sourceHandleOffsetX = 0;
 	let sourceHandleOffsetY = 0;
 
-	// For conditional nodes, we can check the source handle ID from the edge
-	// First, check if we're working with a conditional node
 	if (sourceNode?.type === "conditionalNode") {
-		// Check if the edge is from a true or false handle
-		// We can derive this from the edge data or the source attribute for conditional nodes
-		const isFromTrueHandle = source === "true" || id.includes("true");
-		const isFromFalseHandle = source === "false" || id.includes("false");
-
-		if (isFromTrueHandle) {
+		// Now we use sourceHandleId from the props instead of trying to access it from the node
+		if (sourceHandleId === "true") {
 			sourceHandleOffsetY = 10; // Offset for bottom handle
-		} else if (isFromFalseHandle) {
+		} else if (sourceHandleId === "false") {
 			sourceHandleOffsetX = 10; // Offset for right handle
 		}
 	}
@@ -43,13 +35,9 @@ const AnimatedEdge: React.FC<EdgeProps> = ({ id, source, target, sourceX, source
 
 	if (sourceNode?.type === "conditionalNode") {
 		// Use different colors based on true/false path
-		// We can determine this from the source or edge ID for conditional nodes
-		const isFromTrueHandle = source === "true" || id.includes("true");
-		const isFromFalseHandle = source === "false" || id.includes("false");
-
-		if (isFromTrueHandle) {
+		if (sourceHandleId === "true") {
 			edgeColor = "#10b981"; // Green for true
-		} else if (isFromFalseHandle) {
+		} else if (sourceHandleId === "false") {
 			edgeColor = "#ef4444"; // Red for false
 		}
 		edgeWidth = 3; // Make conditional edges more visible

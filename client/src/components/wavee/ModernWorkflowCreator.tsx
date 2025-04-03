@@ -1,16 +1,17 @@
 // client/src/components/wavee/ModernWorkflowCreator.tsx
-import React, { useState, useCallback, useRef, useEffect } from "react";
-import ReactFlow, { ReactFlowProvider, MiniMap, Controls, Background, Panel, Edge, Connection, NodeTypes, EdgeTypes, Node, useKeyPress } from "reactflow";
+import React, { useState, useCallback, useRef } from "react";
+import ReactFlow, { ReactFlowProvider, MiniMap, Controls, Background, Panel, Edge, Connection, NodeTypes, EdgeTypes, Node } from "reactflow";
 import "reactflow/dist/style.css";
 
 // Import our custom components
 import NodePalette from "../workflow/NodePallete";
 import { useWorkflowStore } from "../workflow/workflowStore";
+import { updateNodeConnections } from "../workflow/nodeConnections";
+import TogglableGuide from "../workflow/custom/TogglableGuide";
 import NodeDetailsPanel from "../workflow/custom/NodeDetailsPanel";
 import AnimatedEdge from "../workflow/custom/AnimatedEdge";
-import { IdeaNode, DraftNode, MediaNode, PlatformNode, ConditionalNode } from "../workflow/custom/StyledNodes";
-import SaveWorkflowModal from "../workflow/SavedWorkflowsModal";
-import HelpModal from "../workflow/HelpModal";
+import { IdeaNode, DraftNode, MediaNode, PlatformNode, ConditionalNode, CSSVariablesStyle } from "../workflow/custom/StyledNodes";
+import { WorkflowExecutor } from "../workflow/workflowExecutor";
 
 // Register custom node types
 const nodeTypes: NodeTypes = {
@@ -29,29 +30,11 @@ const edgeTypes: EdgeTypes = {
 const ModernWorkflowCreator: React.FC = () => {
 	const reactFlowWrapper = useRef<HTMLDivElement>(null);
 	const [reactFlowInstance, setReactFlowInstance] = useState<any>(null);
-	const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
-	const [isHelpModalOpen, setIsHelpModalOpen] = useState(false);
-	const deletePressed = useKeyPress("Delete");
-	const backspacePressed = useKeyPress("Backspace");
+	const [isExecuting, setIsExecuting] = useState(false);
+	const [executionResult, setExecutionResult] = useState<Record<string, any> | null>(null);
 
 	// Workflow store hooks
-	const { nodes, edges, onNodesChange, onEdgesChange, onConnect, addNode, selectedNode, setSelectedNode, updateNodeData, removeNode } = useWorkflowStore();
-
-	// Handle delete key press
-	useEffect(() => {
-		if ((deletePressed || backspacePressed) && selectedNode) {
-			removeNode(selectedNode.id);
-		}
-	}, [deletePressed, backspacePressed, selectedNode, removeNode]);
-
-	// Custom connect handler
-	const handleConnect = useCallback(
-		(connection: Connection) => {
-			// Add the edge with the default edge options which has the animated type
-			onConnect(connection);
-		},
-		[onConnect]
-	);
+	const { nodes, edges, onNodesChange, onEdgesChange, onConnect, addNode, selectedNode, setSelectedNode, updateNodeData, resetWorkflow } = useWorkflowStore();
 
 	// Handle node drag from palette to canvas
 	const onDragOver = useCallback((event: React.DragEvent<HTMLDivElement>) => {
@@ -80,7 +63,7 @@ const ModernWorkflowCreator: React.FC = () => {
 			addNode({
 				type,
 				position,
-				data: { label: `${type.charAt(0).toUpperCase() + type.slice(1, -4)}` }, // Create a nice label from type
+				data: { label: `${type}` },
 			});
 		},
 		[reactFlowInstance, addNode]
@@ -89,10 +72,7 @@ const ModernWorkflowCreator: React.FC = () => {
 	// Handle node selection
 	const onNodeClick = useCallback(
 		(event: React.MouseEvent, node: Node) => {
-			// Only set selected node if we're not clicking on an input, button, or other interactive element
-			if (!(event.target as HTMLElement).closest("input, textarea, button, select")) {
-				setSelectedNode(node);
-			}
+			setSelectedNode(node);
 		},
 		[setSelectedNode]
 	);
@@ -102,18 +82,33 @@ const ModernWorkflowCreator: React.FC = () => {
 		setSelectedNode(null);
 	}, [setSelectedNode]);
 
-	// Handle workflow save
-	const handleSaveWorkflow = () => {
-		setIsSaveModalOpen(true);
-	};
+	// Execute the workflow
+	const executeWorkflow = useCallback(async () => {
+		setIsExecuting(true);
+		try {
+			const executor = new WorkflowExecutor(nodes, edges);
+			const result = await executor.executeWorkflow();
+			setExecutionResult(result);
+		} catch (error) {
+			console.error("Error executing workflow:", error);
+		} finally {
+			setIsExecuting(false);
+		}
+	}, [nodes, edges]);
 
-	// Handle successful save
-	const handleSaveComplete = () => {
-		// Add any post-save actions here
-	};
+	// Confirm workflow reset
+	const handleResetWorkflow = useCallback(() => {
+		if (confirm("Are you sure you want to clear this workflow?")) {
+			resetWorkflow();
+			setExecutionResult(null);
+		}
+	}, [resetWorkflow]);
 
 	return (
 		<div className="flex h-screen bg-gray-50 overflow-hidden">
+			{/* Include the CSS variables for our workflow theme */}
+			<CSSVariablesStyle />
+
 			{/* Left sidebar - Node palette */}
 			<div className="w-64 bg-white border-r border-gray-200 z-10 shadow-sm overflow-y-auto">
 				<div className="p-4 border-b border-gray-200">
@@ -133,62 +128,92 @@ const ModernWorkflowCreator: React.FC = () => {
 						edgeTypes={edgeTypes}
 						onNodesChange={onNodesChange}
 						onEdgesChange={onEdgesChange}
-						onConnect={handleConnect}
+						onConnect={onConnect}
 						onInit={setReactFlowInstance}
 						onDrop={onDrop}
 						onDragOver={onDragOver}
 						onNodeClick={onNodeClick}
 						onPaneClick={onPaneClick}
-						defaultEdgeOptions={{ type: "animated" }}
+						defaultEdgeOptions={{
+							type: "animated",
+							animated: true,
+						}}
 						deleteKeyCode="Delete"
 						multiSelectionKeyCode="Control"
+						snapToGrid={true}
+						snapGrid={[15, 15]}
 						fitView>
 						{/* Controls */}
 						<Controls position="bottom-right" />
-						<MiniMap nodeStrokeWidth={3} zoomable pannable position="bottom-left" className="bg-white border shadow-sm rounded-lg" />
+						<MiniMap
+							nodeStrokeWidth={3}
+							zoomable
+							pannable
+							position="bottom-left"
+							className="bg-white border shadow-sm rounded-lg"
+							nodeColor={(node) => {
+								switch (node.type) {
+									case "ideaNode":
+										return workflowTheme.ideas.primary;
+									case "draftNode":
+										return workflowTheme.draft.primary;
+									case "mediaNode":
+										return workflowTheme.media.primary;
+									case "platformNode":
+										return workflowTheme.platform.primary;
+									case "conditionalNode":
+										return workflowTheme.conditional.primary;
+									default:
+										return "#858585";
+								}
+							}}
+						/>
 						<Background color="#aaa" gap={20} size={1} />
 
+						{/* Connection indicators that show when dragging connections */}
+						<div className="connection-indicator" style={{ display: "none", position: "absolute", pointerEvents: "none" }}>
+							<div className="connect-target"></div>
+						</div>
+
 						{/* Togglable help panel */}
+						<TogglableGuide />
 
 						{/* Action panel */}
 						<Panel position="top-right" className="bg-white shadow-sm rounded-lg p-3 flex space-x-2">
 							<button
-								onClick={() => {
-									/* Add execute workflow logic */
-								}}
-								className="px-3 py-1 bg-[#5a2783] hover:bg-[#6b2f9c] text-white rounded-md text-sm flex items-center">
-								<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-									<path
-										strokeLinecap="round"
-										strokeLinejoin="round"
-										strokeWidth={2}
-										d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"
-									/>
-									<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-								</svg>
-								Execute
+								onClick={executeWorkflow}
+								disabled={isExecuting || nodes.length === 0}
+								className={`px-3 py-1 text-white rounded-md text-sm flex items-center ${
+									isExecuting || nodes.length === 0 ? "bg-gray-400 cursor-not-allowed" : "bg-[#5a2783] hover:bg-[#6b2f9c]"
+								}`}>
+								{isExecuting ? (
+									<>
+										<svg className="animate-spin h-4 w-4 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+											<circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+											<path
+												className="opacity-75"
+												fill="currentColor"
+												d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+										</svg>
+										Executing...
+									</>
+								) : (
+									<>
+										<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+											<path
+												strokeLinecap="round"
+												strokeLinejoin="round"
+												strokeWidth={2}
+												d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"
+											/>
+											<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+										</svg>
+										Execute
+									</>
+								)}
 							</button>
 
-							<button onClick={handleSaveWorkflow} className="px-3 py-1 bg-green-600 hover:bg-green-700 text-white rounded-md text-sm flex items-center">
-								<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-									<path
-										strokeLinecap="round"
-										strokeLinejoin="round"
-										strokeWidth={2}
-										d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"
-									/>
-								</svg>
-								Save
-							</button>
-
-							<button
-								onClick={() => {
-									/* Reset workflow */
-									if (confirm("Are you sure you want to clear this workflow?")) {
-										useWorkflowStore.getState().resetWorkflow();
-									}
-								}}
-								className="px-3 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md text-sm flex items-center">
+							<button onClick={handleResetWorkflow} className="px-3 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md text-sm flex items-center">
 								<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
 									<path
 										strokeLinecap="round"
@@ -200,20 +225,55 @@ const ModernWorkflowCreator: React.FC = () => {
 								Reset
 							</button>
 
-							<button onClick={() => setIsHelpModalOpen(true)} className="px-3 py-1 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-md text-sm flex items-center">
+							<button
+								onClick={() => {
+									// Save dialog would go here
+									alert("Save functionality coming soon!");
+								}}
+								className="px-3 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md text-sm flex items-center">
 								<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
 									<path
 										strokeLinecap="round"
 										strokeLinejoin="round"
 										strokeWidth={2}
-										d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+										d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"
 									/>
 								</svg>
-								Help
+								Save
 							</button>
 						</Panel>
 
-						{/* Hidden from UI for cleaner appearance */}
+						{/* Execution results panel */}
+						{executionResult && (
+							<Panel position="bottom" className="bg-white shadow-lg rounded-t-lg p-4 border-t border-gray-200 max-h-32 overflow-y-auto">
+								<h3 className="font-medium text-gray-800 mb-2">Execution Results</h3>
+								<button
+									onClick={() => setExecutionResult(null)}
+									className="absolute top-2 right-2 text-gray-500 hover:text-gray-700"
+									aria-label="Close execution results">
+									<svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+										<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+									</svg>
+								</button>
+								<div className="text-xs text-gray-600">
+									{Object.entries(executionResult).map(([nodeId, data]) => {
+										const node = nodes.find((n) => n.id === nodeId);
+										if (!node) return null;
+
+										return (
+											<div key={nodeId} className="mb-2">
+												<span className="font-medium">{node.type}:</span>
+												{data.draft && <span> Draft generated</span>}
+												{data.ideas && <span> {data.ideas.length} ideas generated</span>}
+												{data.selectedImage && <span> Image selected</span>}
+												{data.platform && <span> Platform: {data.platform}</span>}
+												{data.result !== undefined && <span> Condition result: {data.result ? "True" : "False"}</span>}
+											</div>
+										);
+									})}
+								</div>
+							</Panel>
+						)}
 					</ReactFlow>
 				</ReactFlowProvider>
 			</div>
@@ -221,13 +281,86 @@ const ModernWorkflowCreator: React.FC = () => {
 			{/* Right panel - Node details */}
 			<NodeDetailsPanel selectedNode={selectedNode} updateNodeData={updateNodeData} />
 
-			{/* Save Workflow Modal */}
-			<SaveWorkflowModal isOpen={isSaveModalOpen} onClose={() => setIsSaveModalOpen(false)} onSave={handleSaveComplete} />
+			{/* Additional CSS for workflow canvas */}
+			<style jsx global>{`
+				.react-flow__handle {
+					opacity: 0.8;
+					transition: opacity 0.2s, transform 0.2s;
+				}
 
-			{/* Help Modal */}
-			<HelpModal isOpen={isHelpModalOpen} onClose={() => setIsHelpModalOpen(false)} />
+				.react-flow__handle:hover {
+					opacity: 1;
+					transform: scale(1.2);
+				}
+
+				.react-flow__edge {
+					cursor: pointer;
+				}
+
+				.react-flow__edge-path {
+					stroke-width: 2.5;
+				}
+
+				.react-flow__edge.selected .react-flow__edge-path {
+					stroke-width: 3.5;
+				}
+
+				.react-flow__node {
+					transition: transform 0.2s ease;
+				}
+
+				.react-flow__node.selected {
+					transform: scale(1.02);
+				}
+
+				@keyframes pulse {
+					0% {
+						box-shadow: 0 0 0 0 rgba(124, 58, 237, 0.4);
+					}
+					70% {
+						box-shadow: 0 0 0 10px rgba(124, 58, 237, 0);
+					}
+					100% {
+						box-shadow: 0 0 0 0 rgba(124, 58, 237, 0);
+					}
+				}
+
+				.dragging .react-flow__handle {
+					animation: pulse 1.5s infinite;
+					opacity: 1;
+				}
+			`}</style>
 		</div>
 	);
+};
+
+// Define theme colors for workflow nodes
+const workflowTheme = {
+	ideas: {
+		primary: "#7c3aed", // Purple
+		secondary: "#ddd6fe", // Light purple
+		border: "#c4b5fd", // Medium purple
+	},
+	draft: {
+		primary: "#e03885", // Pink
+		secondary: "#fce7f3", // Light pink
+		border: "#f9a8d4", // Medium pink
+	},
+	media: {
+		primary: "#3b82f6", // Blue
+		secondary: "#dbeafe", // Light blue
+		border: "#93c5fd", // Medium blue
+	},
+	platform: {
+		primary: "#8b5cf6", // Violet
+		secondary: "#ede9fe", // Light violet
+		border: "#c4b5fd", // Medium violet
+	},
+	conditional: {
+		primary: "#f59e0b", // Amber
+		secondary: "#fef3c7", // Light amber
+		border: "#fcd34d", // Medium amber
+	},
 };
 
 export default ModernWorkflowCreator;

@@ -15,22 +15,64 @@ interface StyledNodeProps extends NodeProps {
 	};
 }
 
+// Define CSS variables for the workflow theme
+const workflowTheme = {
+	ideas: {
+		primary: "#7c3aed", // Purple
+		secondary: "#ddd6fe", // Light purple
+		border: "#c4b5fd", // Medium purple
+	},
+	draft: {
+		primary: "#e03885", // Pink
+		secondary: "#fce7f3", // Light pink
+		border: "#f9a8d4", // Medium pink
+	},
+	media: {
+		primary: "#3b82f6", // Blue
+		secondary: "#dbeafe", // Light blue
+		border: "#93c5fd", // Medium blue
+	},
+	platform: {
+		primary: "#8b5cf6", // Violet
+		secondary: "#ede9fe", // Light violet
+		border: "#c4b5fd", // Medium violet
+	},
+	conditional: {
+		primary: "#f59e0b", // Amber
+		secondary: "#fef3c7", // Light amber
+		border: "#fcd34d", // Medium amber
+	},
+};
+
 export const StyledNode: React.FC<StyledNodeProps> = ({ id, data, selected, title, icon, color, borderColor, children, handles = {} }) => {
 	return (
 		<div
-			className="bg-white rounded-xl shadow-md w-64 p-0 border-2 transition-all duration-200"
+			className="relative bg-white rounded-xl shadow-lg overflow-hidden transition-all duration-200"
 			style={{
+				width: "280px",
+				borderWidth: "2px",
+				borderStyle: "solid",
 				borderColor: selected ? `var(--${borderColor})` : `var(--${borderColor})`,
-				boxShadow: selected ? `0 0 0 2px var(--${borderColor}-30)` : "none",
+				boxShadow: selected ? `0 0 0 2px var(--${borderColor})` : "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)",
+				transform: selected ? "scale(1.02)" : "scale(1)",
 			}}>
 			{/* Header */}
-			<div className="font-bold rounded-t-lg text-white p-3 flex items-center" style={{ minHeight: "42px", backgroundColor: `var(--${color})` }}>
-				<div className="mr-2">{icon}</div>
-				<div className="truncate">{title}</div>
+			<div
+				className="font-bold rounded-t-lg text-white p-3 flex items-center justify-between"
+				style={{
+					minHeight: "48px",
+					background: `linear-gradient(135deg, var(--${color}) 0%, var(--${color}-dark) 100%)`,
+					boxShadow: "0 1px 3px rgba(0,0,0,0.12)",
+				}}>
+				<div className="flex items-center">
+					<div className="mr-2 flex-shrink-0 w-8 h-8 flex items-center justify-center bg-white bg-opacity-20 rounded-full">{icon}</div>
+					<div className="truncate font-semibold">{title}</div>
+				</div>
+				<div className="text-xs bg-white bg-opacity-20 px-2 py-1 rounded-full">{data.id?.toString().substring(0, 4)}</div>
 			</div>
 
 			{/* Content */}
-			<div className="p-3 min-h-[80px] max-h-[150px] overflow-hidden">
+			<div className="p-4 bg-opacity-10" style={{ backgroundColor: `var(--${color}-light)`, minHeight: "100px", maxHeight: "200px", overflow: "auto" }}>
 				{children ? children : <div className="text-sm text-gray-600">{data.label || "Configure this node..."}</div>}
 			</div>
 
@@ -43,10 +85,18 @@ export const StyledNode: React.FC<StyledNodeProps> = ({ id, data, selected, titl
 					id={handle.id}
 					style={{
 						background: `var(--${color})`,
-						width: "10px",
-						height: "10px",
+						width: "14px",
+						height: "14px",
+						top: handle.position === Position.Top ? "-7px" : "auto",
+						left: handle.position === Position.Left ? "-7px" : "auto",
+						right: handle.position === Position.Right ? "-7px" : "auto",
+						bottom: handle.position === Position.Bottom ? "-7px" : "auto",
 						border: "2px solid white",
+						transition: "all 0.2s ease",
+						boxShadow: "0 0 6px rgba(0, 0, 0, 0.3)",
+						zIndex: 10,
 					}}
+					className="hover:scale-125 hover:shadow-md"
 				/>
 			)) || (
 				<Handle
@@ -55,10 +105,15 @@ export const StyledNode: React.FC<StyledNodeProps> = ({ id, data, selected, titl
 					id="input"
 					style={{
 						background: `var(--${color})`,
-						width: "10px",
-						height: "10px",
+						width: "14px",
+						height: "14px",
+						top: "-7px",
 						border: "2px solid white",
+						transition: "all 0.2s ease",
+						boxShadow: "0 0 6px rgba(0, 0, 0, 0.3)",
+						zIndex: 10,
 					}}
+					className="hover:scale-125 hover:shadow-md"
 				/>
 			)}
 
@@ -71,10 +126,18 @@ export const StyledNode: React.FC<StyledNodeProps> = ({ id, data, selected, titl
 					id={handle.id}
 					style={{
 						background: `var(--${color})`,
-						width: "10px",
-						height: "10px",
+						width: "14px",
+						height: "14px",
+						top: handle.position === Position.Top ? "-7px" : "auto",
+						left: handle.position === Position.Left ? "-7px" : "auto",
+						right: handle.position === Position.Right ? "-7px" : "auto",
+						bottom: handle.position === Position.Bottom ? "-7px" : "auto",
 						border: "2px solid white",
+						transition: "all 0.2s ease",
+						boxShadow: "0 0 6px rgba(0, 0, 0, 0.3)",
+						zIndex: 10,
 					}}
+					className="hover:scale-125 hover:shadow-md"
 				/>
 			)) || (
 				<Handle
@@ -83,10 +146,15 @@ export const StyledNode: React.FC<StyledNodeProps> = ({ id, data, selected, titl
 					id="output"
 					style={{
 						background: `var(--${color})`,
-						width: "10px",
-						height: "10px",
+						width: "14px",
+						height: "14px",
+						bottom: "-7px",
 						border: "2px solid white",
+						transition: "all 0.2s ease",
+						boxShadow: "0 0 6px rgba(0, 0, 0, 0.3)",
+						zIndex: 10,
 					}}
+					className="hover:scale-125 hover:shadow-md"
 				/>
 			)}
 		</div>
@@ -108,7 +176,7 @@ export const IdeaNode: React.FC<NodeProps> = (props) => {
 	);
 
 	return (
-		<StyledNode {...props} title="Content Ideas" icon={icon} color="purple-600" borderColor="purple-300">
+		<StyledNode {...props} title="Content Ideas" icon={icon} color="ideas-primary" borderColor="ideas-border">
 			<div className="text-sm">
 				{data.topic ? (
 					<div>
@@ -161,7 +229,7 @@ export const DraftNode: React.FC<NodeProps> = (props) => {
 	);
 
 	return (
-		<StyledNode {...props} title="Draft Generator" icon={icon} color="pink-600" borderColor="pink-300">
+		<StyledNode {...props} title="Draft Generator" icon={icon} color="draft-primary" borderColor="draft-border">
 			<div className="text-sm">
 				{data.prompt ? (
 					<div>
@@ -215,7 +283,7 @@ export const MediaNode: React.FC<NodeProps> = (props) => {
 	);
 
 	return (
-		<StyledNode {...props} title="Media Selection" icon={icon} color="blue-600" borderColor="blue-300">
+		<StyledNode {...props} title="Media Selection" icon={icon} color="media-primary" borderColor="media-border">
 			<div className="text-sm">
 				{data.query ? (
 					<div>
@@ -288,14 +356,14 @@ export const PlatformNode: React.FC<NodeProps> = (props) => {
 	};
 
 	return (
-		<StyledNode {...props} title="Platform Selection" icon={icon} color="purple-600" borderColor="purple-300">
+		<StyledNode {...props} title="Platform Selection" icon={icon} color="platform-primary" borderColor="platform-border">
 			<div className="text-sm">
 				{data.platform ? (
 					<div>
 						<div className="font-medium text-gray-700 mb-2">Selected platform:</div>
-						<div className="flex items-center justify-between bg-purple-50 rounded p-2">
-							<div className="font-medium text-purple-800">{data.platform.charAt(0).toUpperCase() + data.platform.slice(1)}</div>
-							<div className="text-purple-600">
+						<div className="flex items-center justify-between bg-violet-50 rounded p-2">
+							<div className="font-medium text-violet-800">{data.platform.charAt(0).toUpperCase() + data.platform.slice(1)}</div>
+							<div className="text-violet-600">
 								{platformIcons[data.platform as keyof typeof platformIcons] || (
 									<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
 										<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -308,7 +376,7 @@ export const PlatformNode: React.FC<NodeProps> = (props) => {
 					<div>
 						<div className="font-medium text-gray-700 mb-2">Instructions:</div>
 						<div className="flex bg-gray-50 p-3 rounded border border-gray-200 text-gray-600">
-							<div className="mr-2 text-purple-500">
+							<div className="mr-2 text-violet-500">
 								<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
 									<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
 								</svg>
@@ -350,8 +418,8 @@ export const ConditionalNode: React.FC<NodeProps> = (props) => {
 			{...props}
 			title="Conditional Branch"
 			icon={icon}
-			color="amber-500"
-			borderColor="amber-300"
+			color="conditional-primary"
+			borderColor="conditional-border"
 			handles={{
 				inputs: [{ id: "input", position: Position.Top }],
 				outputs: [
@@ -389,7 +457,80 @@ export const ConditionalNode: React.FC<NodeProps> = (props) => {
 						</div>
 					</div>
 				)}
+
+				{/* Show result indicator if the node has been evaluated */}
+				{data.result !== undefined && (
+					<div
+						className="mt-3 p-2 rounded"
+						style={{
+							backgroundColor: data.result ? "rgba(16, 185, 129, 0.1)" : "rgba(239, 68, 68, 0.1)",
+							color: data.result ? "rgb(6, 95, 70)" : "rgb(153, 27, 27)",
+						}}>
+						<div className="flex items-center">
+							<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" viewBox="0 0 20 20" fill="currentColor">
+								{data.result ? (
+									<path
+										fillRule="evenodd"
+										d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+										clipRule="evenodd"
+									/>
+								) : (
+									<path
+										fillRule="evenodd"
+										d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
+										clipRule="evenodd"
+									/>
+								)}
+							</svg>
+							<div className="text-xs font-medium">Evaluated: {data.result ? "True" : "False"}</div>
+						</div>
+					</div>
+				)}
 			</div>
 		</StyledNode>
 	);
 };
+
+// Add CSS variables for the workflow theme
+const CSSVariablesStyle = () => {
+	return (
+		<style>
+			{`
+			:root {
+				--ideas-primary: ${workflowTheme.ideas.primary};
+				--ideas-primary-dark: ${workflowTheme.ideas.primary};
+				--ideas-secondary: ${workflowTheme.ideas.secondary};
+				--ideas-light: ${workflowTheme.ideas.secondary};
+				--ideas-border: ${workflowTheme.ideas.border};
+				
+				--draft-primary: ${workflowTheme.draft.primary};
+				--draft-primary-dark: ${workflowTheme.draft.primary};
+				--draft-secondary: ${workflowTheme.draft.secondary};
+				--draft-light: ${workflowTheme.draft.secondary};
+				--draft-border: ${workflowTheme.draft.border};
+				
+				--media-primary: ${workflowTheme.media.primary};
+				--media-primary-dark: ${workflowTheme.media.primary};
+				--media-secondary: ${workflowTheme.media.secondary};
+				--media-light: ${workflowTheme.media.secondary};
+				--media-border: ${workflowTheme.media.border};
+				
+				--platform-primary: ${workflowTheme.platform.primary};
+				--platform-primary-dark: ${workflowTheme.platform.primary};
+				--platform-secondary: ${workflowTheme.platform.secondary};
+				--platform-light: ${workflowTheme.platform.secondary};
+				--platform-border: ${workflowTheme.platform.border};
+				
+				--conditional-primary: ${workflowTheme.conditional.primary};
+				--conditional-primary-dark: ${workflowTheme.conditional.primary};
+				--conditional-secondary: ${workflowTheme.conditional.secondary};
+				--conditional-light: ${workflowTheme.conditional.secondary};
+				--conditional-border: ${workflowTheme.conditional.border};
+			}
+			`}
+		</style>
+	);
+};
+
+// Export the CSS variables component to be used in the App
+export { CSSVariablesStyle };

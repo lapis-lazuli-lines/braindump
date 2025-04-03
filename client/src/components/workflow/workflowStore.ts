@@ -1,6 +1,6 @@
 // client/src/components/workflow/workflowStore.ts
 import { create } from "zustand";
-import { Connection, Edge, EdgeChange, Node, NodeChange, addEdge, OnNodesChange, OnEdgesChange, OnConnect, applyNodeChanges, applyEdgeChanges } from "reactflow";
+import { Connection, Edge, EdgeChange, Node, NodeChange, addEdge, OnNodesChange, OnEdgesChange, OnConnect, applyNodeChanges, applyEdgeChanges, getConnectedEdges } from "reactflow";
 
 interface WorkflowState {
 	nodes: Node[];
@@ -11,6 +11,7 @@ interface WorkflowState {
 	onConnect: OnConnect;
 	addNode: (node: Partial<Node>) => void;
 	updateNodeData: (nodeId: string, data: any) => void;
+	removeNode: (nodeId: string) => void;
 	setSelectedNode: (node: Node | null) => void;
 	resetWorkflow: () => void;
 	saveWorkflow: (name: string) => any;
@@ -66,11 +67,40 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
 		set({
 			nodes: get().nodes.map((node) => {
 				if (node.id === nodeId) {
+					// Update the selected node as well if it's the same node
+					if (get().selectedNode?.id === nodeId) {
+						set({
+							selectedNode: { ...node, data: { ...node.data, ...data } },
+						});
+					}
 					return { ...node, data: { ...node.data, ...data } };
 				}
 				return node;
 			}),
 		});
+	},
+
+	removeNode: (nodeId: string) => {
+		// Get all edges connected to this node to remove them too
+		const nodesToRemove = new Set([nodeId]);
+		const edgesToRemove = get().edges.filter((edge) => nodesToRemove.has(edge.source) || nodesToRemove.has(edge.target));
+
+		// Remove the edges first
+		set({
+			edges: get().edges.filter((edge) => !nodesToRemove.has(edge.source) && !nodesToRemove.has(edge.target)),
+		});
+
+		// Then remove the node
+		set({
+			nodes: get().nodes.filter((node) => !nodesToRemove.has(node.id)),
+		});
+
+		// Clear selected node if it was the deleted one
+		if (get().selectedNode?.id === nodeId) {
+			set({
+				selectedNode: null,
+			});
+		}
 	},
 
 	setSelectedNode: (node: Node | null) => {

@@ -1,15 +1,16 @@
 // client/src/components/wavee/ModernWorkflowCreator.tsx
-import React, { useState, useCallback, useRef } from "react";
-import ReactFlow, { ReactFlowProvider, MiniMap, Controls, Background, Panel, Edge, Connection, NodeTypes, EdgeTypes, Node } from "reactflow";
+import React, { useState, useCallback, useRef, useEffect } from "react";
+import ReactFlow, { ReactFlowProvider, MiniMap, Controls, Background, Panel, Edge, Connection, NodeTypes, EdgeTypes, Node, useKeyPress } from "reactflow";
 import "reactflow/dist/style.css";
 
 // Import our custom components
 import NodePalette from "../workflow/NodePallete";
 import { useWorkflowStore } from "../workflow/workflowStore";
-import TogglableGuide from "../workflow/custom/TogglableGuide";
 import NodeDetailsPanel from "../workflow/custom/NodeDetailsPanel";
 import AnimatedEdge from "../workflow/custom/AnimatedEdge";
 import { IdeaNode, DraftNode, MediaNode, PlatformNode, ConditionalNode } from "../workflow/custom/StyledNodes";
+import SaveWorkflowModal from "../workflow/SavedWorkflowsModal";
+import HelpModal from "../workflow/HelpModal";
 
 // Register custom node types
 const nodeTypes: NodeTypes = {
@@ -28,11 +29,21 @@ const edgeTypes: EdgeTypes = {
 const ModernWorkflowCreator: React.FC = () => {
 	const reactFlowWrapper = useRef<HTMLDivElement>(null);
 	const [reactFlowInstance, setReactFlowInstance] = useState<any>(null);
+	const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
+	const [isHelpModalOpen, setIsHelpModalOpen] = useState(false);
+	const deletePressed = useKeyPress("Delete");
+	const backspacePressed = useKeyPress("Backspace");
 
 	// Workflow store hooks
-	const { nodes, edges, onNodesChange, onEdgesChange, onConnect, addNode, selectedNode, setSelectedNode, updateNodeData } = useWorkflowStore();
+	const { nodes, edges, onNodesChange, onEdgesChange, onConnect, addNode, selectedNode, setSelectedNode, updateNodeData, removeNode } = useWorkflowStore();
 
-	// Custom connect handler
+	// Handle delete key press
+	useEffect(() => {
+		if ((deletePressed || backspacePressed) && selectedNode) {
+			removeNode(selectedNode.id);
+		}
+	}, [deletePressed, backspacePressed, selectedNode, removeNode]);
+
 	// Custom connect handler
 	const handleConnect = useCallback(
 		(connection: Connection) => {
@@ -69,7 +80,7 @@ const ModernWorkflowCreator: React.FC = () => {
 			addNode({
 				type,
 				position,
-				data: { label: `${type}` },
+				data: { label: `${type.charAt(0).toUpperCase() + type.slice(1, -4)}` }, // Create a nice label from type
 			});
 		},
 		[reactFlowInstance, addNode]
@@ -78,7 +89,10 @@ const ModernWorkflowCreator: React.FC = () => {
 	// Handle node selection
 	const onNodeClick = useCallback(
 		(event: React.MouseEvent, node: Node) => {
-			setSelectedNode(node);
+			// Only set selected node if we're not clicking on an input, button, or other interactive element
+			if (!(event.target as HTMLElement).closest("input, textarea, button, select")) {
+				setSelectedNode(node);
+			}
 		},
 		[setSelectedNode]
 	);
@@ -87,6 +101,16 @@ const ModernWorkflowCreator: React.FC = () => {
 	const onPaneClick = useCallback(() => {
 		setSelectedNode(null);
 	}, [setSelectedNode]);
+
+	// Handle workflow save
+	const handleSaveWorkflow = () => {
+		setIsSaveModalOpen(true);
+	};
+
+	// Handle successful save
+	const handleSaveComplete = () => {
+		// Add any post-save actions here
+	};
 
 	return (
 		<div className="flex h-screen bg-gray-50 overflow-hidden">
@@ -125,7 +149,6 @@ const ModernWorkflowCreator: React.FC = () => {
 						<Background color="#aaa" gap={20} size={1} />
 
 						{/* Togglable help panel */}
-						<TogglableGuide />
 
 						{/* Action panel */}
 						<Panel position="top-right" className="bg-white shadow-sm rounded-lg p-3 flex space-x-2">
@@ -144,6 +167,18 @@ const ModernWorkflowCreator: React.FC = () => {
 									<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
 								</svg>
 								Execute
+							</button>
+
+							<button onClick={handleSaveWorkflow} className="px-3 py-1 bg-green-600 hover:bg-green-700 text-white rounded-md text-sm flex items-center">
+								<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+									<path
+										strokeLinecap="round"
+										strokeLinejoin="round"
+										strokeWidth={2}
+										d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"
+									/>
+								</svg>
+								Save
 							</button>
 
 							<button
@@ -165,28 +200,32 @@ const ModernWorkflowCreator: React.FC = () => {
 								Reset
 							</button>
 
-							<button
-								onClick={() => {
-									/* Open save dialog */
-								}}
-								className="px-3 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md text-sm flex items-center">
+							<button onClick={() => setIsHelpModalOpen(true)} className="px-3 py-1 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-md text-sm flex items-center">
 								<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
 									<path
 										strokeLinecap="round"
 										strokeLinejoin="round"
 										strokeWidth={2}
-										d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"
+										d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
 									/>
 								</svg>
-								Save
+								Help
 							</button>
 						</Panel>
+
+						{/* Hidden from UI for cleaner appearance */}
 					</ReactFlow>
 				</ReactFlowProvider>
 			</div>
 
 			{/* Right panel - Node details */}
 			<NodeDetailsPanel selectedNode={selectedNode} updateNodeData={updateNodeData} />
+
+			{/* Save Workflow Modal */}
+			<SaveWorkflowModal isOpen={isSaveModalOpen} onClose={() => setIsSaveModalOpen(false)} onSave={handleSaveComplete} />
+
+			{/* Help Modal */}
+			<HelpModal isOpen={isHelpModalOpen} onClose={() => setIsHelpModalOpen(false)} />
 		</div>
 	);
 };

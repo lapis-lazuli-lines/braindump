@@ -144,6 +144,12 @@ export class WorkflowExecutor {
 					break;
 			}
 
+			// Store the result in nodeData for visualization purposes
+			this.context.nodeData[nodeId] = {
+				...nodeData,
+				result: conditionResult,
+			};
+
 			return conditionResult ? trueEdge.target : falseEdge.target;
 		}
 
@@ -183,6 +189,7 @@ export class WorkflowExecutor {
 			return !!nodeData.platform;
 		});
 	}
+
 	public async executeWorkflow(): Promise<Record<string, any>> {
 		const startNodeId = this.context.currentNodeId;
 		if (!startNodeId) {
@@ -210,6 +217,9 @@ export class WorkflowExecutor {
 			// Update current node
 			currentNodeId = nextNodeId;
 		}
+
+		// After execution is complete, ensure connections are updated
+		this.context.nodes = updateNodeConnections(this.context.nodes, this.context.edges);
 
 		console.log("Workflow execution complete");
 		return this.context.nodeData;

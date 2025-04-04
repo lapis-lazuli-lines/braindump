@@ -1,4 +1,4 @@
-// MediaNode.tsx - Enhanced implementation with improved image display
+// MediaNode.tsx - Fixed implementation with proper state handling
 
 import React, { useState, useEffect, useRef } from "react";
 import { Handle, Position, NodeProps } from "reactflow";
@@ -31,6 +31,7 @@ const MediaNode: React.FC<NodeProps> = ({ id, data, selected }) => {
 		imageSize: data.imageSize || "medium",
 		imagePosition: data.imagePosition || "center",
 		showCaption: data.showCaption || false,
+		images: data.images || [],
 	});
 	const [editingTitle, setEditingTitle] = useState(false);
 	const nodeRef = useRef<HTMLDivElement>(null);
@@ -46,7 +47,7 @@ const MediaNode: React.FC<NodeProps> = ({ id, data, selected }) => {
 
 	// Update temp data when node data changes (e.g., from details panel)
 	useEffect(() => {
-		if (data.selectedImage && (!tempData.selectedImage || data.selectedImage.id !== tempData.selectedImage.id)) {
+		if (data.selectedImage && (!tempData.selectedImage || data.selectedImage.id !== tempData.selectedImage?.id)) {
 			setTempData((prevData) => ({
 				...prevData,
 				selectedImage: data.selectedImage,
@@ -62,7 +63,15 @@ const MediaNode: React.FC<NodeProps> = ({ id, data, selected }) => {
 				showCaption: data.showCaption || false,
 			}));
 		}
-	}, [data.selectedImage, data.imageSize, data.imagePosition, data.showCaption]);
+
+		// Update images if they change
+		if (data.images && (!tempData.images || tempData.images.length === 0)) {
+			setTempData((prevData) => ({
+				...prevData,
+				images: data.images,
+			}));
+		}
+	}, [data.selectedImage, data.imageSize, data.imagePosition, data.showCaption, data.images]);
 
 	// Focus title input when editing title
 	useEffect(() => {
@@ -117,6 +126,7 @@ const MediaNode: React.FC<NodeProps> = ({ id, data, selected }) => {
 			imageSize: data.imageSize || "medium",
 			imagePosition: data.imagePosition || "center",
 			showCaption: data.showCaption || false,
+			images: data.images || [],
 		});
 	};
 
@@ -147,62 +157,31 @@ const MediaNode: React.FC<NodeProps> = ({ id, data, selected }) => {
 	};
 
 	// Search for images (simulated)
+	// In MediaNode.tsx
 	const searchImages = async () => {
 		if (!tempData.query) return;
 
 		setIsSearching(true);
 
 		try {
-			// Simulate API call
-			await new Promise((resolve) => setTimeout(resolve, 1500));
+			// Call server API endpoint
+			const response = await fetch(`/api/images/suggest?query=${encodeURIComponent(tempData.query)}`);
+			const data = await response.json();
 
-			// Generate more realistic placeholder images with varied aspect ratios
-			const mockImages: ImageData[] = Array.from({ length: 9 }, (_, i) => {
-				// Use different aspect ratios for variety
-				const aspectRatio = [
-					"16:9",
-					"4:3",
-					"1:1",
-					"3:2",
-					"5:4",
-					"3:4",
-					"9:16", // Some portrait images too
-				][i % 7];
+			if (data.images && Array.isArray(data.images)) {
+				// Update temp data with actual Unsplash images
+				setTempData({
+					...tempData,
+					images: data.images,
+				});
 
-				// Extract dimensions from aspect ratio
-				const [w, h] = aspectRatio.split(":").map(Number);
-
-				// Generate width and height for placeholder
-				const width = 300;
-				const height = Math.round((width / w) * h);
-
-				return {
-					id: `img-${i + 1}-${Date.now()}`,
-					urls: {
-						thumb: `https://placehold.co/100x${Math.round((100 * h) / w)}/3b82f6/FFFFFF?text=${encodeURIComponent(tempData.query.slice(0, 10))}`,
-						small: `https://placehold.co/${width}x${height}/3b82f6/FFFFFF?text=${encodeURIComponent(tempData.query.slice(0, 10))}`,
-						regular: `https://placehold.co/800x${Math.round((800 * h) / w)}/3b82f6/FFFFFF?text=${encodeURIComponent(tempData.query.slice(0, 10))}`,
-					},
-					alt_description: `${tempData.query} image ${i + 1}`,
-					description: `Image related to ${tempData.query} with ${aspectRatio} aspect ratio`,
-					user: {
-						name: "Demo User",
-					},
-				};
-			});
-
-			// Update temp data with search results
-			setTempData({
-				...tempData,
-				images: mockImages,
-			});
-
-			// Update actual node data
-			updateNodeData(id, {
-				query: tempData.query,
-				images: mockImages,
-				hasSearched: true,
-			});
+				// Update node data
+				updateNodeData(id, {
+					query: tempData.query,
+					images: data.images,
+					hasSearched: true,
+				});
+			}
 		} catch (error) {
 			console.error("Failed to search images:", error);
 		} finally {
@@ -403,23 +382,24 @@ const MediaNode: React.FC<NodeProps> = ({ id, data, selected }) => {
 		if (!data.selectedImage) return null;
 
 		// Determine size class based on settings
-		const sizeClass = {
+		const sizeClasses = {
 			small: "h-16",
 			medium: "h-20",
 			large: "h-24",
 			full: "h-28",
-		}[data.imageSize || "medium"];
+		};
 
 		// Determine alignment class based on settings
-		const alignClass = {
+		const alignClasses = {
 			left: "justify-start",
 			center: "justify-center",
 			right: "justify-end",
-		}[data.imagePosition || "center"];
+		};
+		const alignClass = alignClasses[data.imagePosition as keyof typeof alignClasses] || alignClasses["center"];
 
 		return (
 			<div className="mb-1">
-				<div className={`flex ${alignClass} overflow-hidden rounded-md bg-gray-50 border border-gray-200 ${sizeClass}`}>
+				<div className={`flex ${alignClass} overflow-hidden rounded-md bg-gray-50 border border-gray-200 ${sizeClasses}`}>
 					<img src={data.selectedImage.urls.small} alt={data.selectedImage.alt_description || "Selected image"} className="max-h-full object-contain" />
 				</div>
 

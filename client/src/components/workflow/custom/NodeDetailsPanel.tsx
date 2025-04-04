@@ -1,12 +1,31 @@
-// client/src/components/workflow/custom/NodeDetailsPanel.tsx
-import React from "react";
+// NodeDetailsPanel.tsx - Fixed implementation
+import React, { useState, useEffect } from "react";
 import { Node } from "reactflow";
+import { useWorkflowStore } from "../workflowStore";
+
 interface NodeDetailsPanelProps {
 	selectedNode: Node | null;
 	updateNodeData: (nodeId: string, data: any) => void;
-	onDeleteNode: (nodeId: string) => void; // Added this prop
+	onDeleteNode: (nodeId: string) => void;
 }
+
 const NodeDetailsPanel: React.FC<NodeDetailsPanelProps> = ({ selectedNode, updateNodeData, onDeleteNode }) => {
+	// Shared state for all node types - moved to component level to avoid hooks error
+	const [isGenerating, setIsGenerating] = useState(false);
+	const [editableDraft, setEditableDraft] = useState("");
+	const [draftEdited, setDraftEdited] = useState(false);
+
+	// Update editable draft when selected node changes
+	useEffect(() => {
+		if (selectedNode?.type === "draftNode" && selectedNode?.data?.draft) {
+			setEditableDraft(selectedNode.data.draft);
+			setDraftEdited(false);
+		} else {
+			setEditableDraft("");
+			setDraftEdited(false);
+		}
+	}, [selectedNode]);
+
 	if (!selectedNode) {
 		return (
 			<div className="w-80 bg-gray-50 border-l border-gray-200 overflow-auto shadow-inner">
@@ -23,227 +42,508 @@ const NodeDetailsPanel: React.FC<NodeDetailsPanelProps> = ({ selectedNode, updat
 		);
 	}
 
-	// Get node specific details based on type
-	const getNodeDetails = () => {
-		const { id, type, data } = selectedNode;
+	// Content specific to Content Ideas node
+	const renderContentIdeasDetails = () => {
+		const { id, data } = selectedNode;
 
-		switch (type) {
-			case "ideaNode":
-				return (
-					<div className="space-y-4">
-						<div>
-							<label className="block text-sm font-medium text-gray-700 mb-1">Topic</label>
+		// Generate ideas function
+		const generateIdeas = async () => {
+			if (!data.topic) return;
+
+			setIsGenerating(true);
+
+			try {
+				// Simulate API call
+				await new Promise((resolve) => setTimeout(resolve, 1500));
+
+				// Sample generated ideas
+				const generatedIdeas = [
+					`${data.topic} - strategy guide for beginners`,
+					`How to use ${data.topic} for business growth`,
+					`10 trends in ${data.topic} for 2025`,
+					`The ultimate ${data.topic} checklist`,
+					`Why ${data.topic} matters for your brand`,
+					`Comprehensive analysis of ${data.topic}`,
+					`Future of ${data.topic} in digital marketing`,
+				];
+
+				// Update node data
+				updateNodeData(id, {
+					ideas: generatedIdeas,
+					hasGenerated: true,
+				});
+			} catch (error) {
+				console.error("Failed to generate ideas:", error);
+			} finally {
+				setIsGenerating(false);
+			}
+		};
+
+		return (
+			<div className="space-y-5">
+				<div>
+					<h3 className="text-lg font-medium text-gray-800 mb-3">Content Ideas Configuration</h3>
+					<p className="text-sm text-gray-600 mb-5">Generate content ideas based on a topic. Select an idea to pass to the next node.</p>
+				</div>
+
+				<div className="space-y-4">
+					<div>
+						<label className="block text-sm font-medium text-gray-700 mb-1">Topic</label>
+						<div className="flex space-x-2">
 							<input
 								type="text"
 								value={data.topic || ""}
-								onChange={(e) => updateNodeData(id, { ...data, topic: e.target.value })}
+								onChange={(e) => updateNodeData(id, { topic: e.target.value })}
 								placeholder="Enter a topic"
-								className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-purple-500 focus:border-purple-500"
+								className="flex-1 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-purple-500 focus:border-purple-500"
 							/>
-						</div>
-
-						{data.hasGenerated && data.ideas && (
-							<div>
-								<label className="block text-sm font-medium text-gray-700 mb-1">Generated Ideas</label>
-								<div className="bg-white border border-gray-200 rounded-md shadow-sm p-3 max-h-60 overflow-y-auto">
-									{data.ideas.map((idea: string, idx: number) => (
-										<div key={idx} className="flex items-start py-1">
-											<input
-												type="radio"
-												id={`idea-${id}-${idx}`}
-												name={`idea-${id}`}
-												checked={data.selectedIdea === idea}
-												onChange={() => updateNodeData(id, { ...data, selectedIdea: idea })}
-												className="mt-1 mr-2"
-											/>
-											<label htmlFor={`idea-${id}-${idx}`} className="text-sm text-gray-700">
-												{idea}
-											</label>
-										</div>
-									))}
-								</div>
-							</div>
-						)}
-
-						<div>
-							<label className="block text-sm font-medium text-gray-700 mb-1">Selected Idea</label>
-							<div className="bg-purple-50 border border-purple-100 rounded-md p-3 text-sm text-gray-800">
-								{data.selectedIdea || <span className="text-gray-400 italic">No idea selected</span>}
-							</div>
+							<button
+								onClick={generateIdeas}
+								disabled={!data.topic || isGenerating}
+								className={`px-3 py-2 rounded-md text-sm text-white font-medium flex items-center ${
+									!data.topic || isGenerating ? "bg-gray-400 cursor-not-allowed" : "bg-purple-600 hover:bg-purple-700"
+								}`}>
+								{isGenerating ? (
+									<>
+										<svg className="animate-spin h-4 w-4 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+											<circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+											<path
+												className="opacity-75"
+												fill="currentColor"
+												d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+										</svg>
+										Generating...
+									</>
+								) : (
+									<>
+										<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+											<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+										</svg>
+										Generate Ideas
+									</>
+								)}
+							</button>
 						</div>
 					</div>
-				);
 
-			case "draftNode":
-				return (
-					<div className="space-y-4">
+					{data.hasGenerated && data.ideas && (
 						<div>
-							<label className="block text-sm font-medium text-gray-700 mb-1">Prompt</label>
+							<div className="flex justify-between items-center mb-2">
+								<label className="block text-sm font-medium text-gray-700">Generated Ideas</label>
+								<span className="text-xs bg-purple-100 text-purple-800 px-2 py-0.5 rounded-full">{data.ideas.length} ideas</span>
+							</div>
+
+							<div className="bg-white border border-gray-200 rounded-md shadow-sm p-3 max-h-60 overflow-y-auto">
+								{data.ideas.map((idea: string, idx: number) => (
+									<div key={idx} className="flex items-start py-1.5 border-b last:border-b-0 border-gray-100">
+										<input
+											type="radio"
+											id={`idea-${id}-${idx}`}
+											name={`idea-${id}`}
+											checked={data.selectedIdea === idea}
+											onChange={() => updateNodeData(id, { selectedIdea: idea })}
+											className="mt-1 mr-2"
+										/>
+										<label htmlFor={`idea-${id}-${idx}`} className="text-sm text-gray-700 cursor-pointer">
+											{idea}
+										</label>
+									</div>
+								))}
+							</div>
+						</div>
+					)}
+
+					{data.selectedIdea && (
+						<div>
+							<label className="block text-sm font-medium text-gray-700 mb-1">Selected Idea</label>
+							<div className="bg-green-50 border border-green-100 rounded-md p-3 text-sm text-gray-800">{data.selectedIdea}</div>
+						</div>
+					)}
+				</div>
+
+				<div className="border-t border-gray-200 pt-4 mt-6">
+					<h4 className="text-sm font-medium text-gray-700 mb-2">Options</h4>
+					<div className="flex space-x-2">
+						<button
+							onClick={() => {
+								// Clear ideas and reset node
+								updateNodeData(id, {
+									ideas: null,
+									selectedIdea: null,
+									hasGenerated: false,
+								});
+							}}
+							className="px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md text-sm flex items-center">
+							<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+								<path
+									strokeLinecap="round"
+									strokeLinejoin="round"
+									strokeWidth={2}
+									d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+								/>
+							</svg>
+							Reset Ideas
+						</button>
+						<button onClick={() => onDeleteNode(id)} className="px-3 py-2 bg-red-50 hover:bg-red-100 text-red-600 rounded-md text-sm flex items-center">
+							<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+								<path
+									strokeLinecap="round"
+									strokeLinejoin="round"
+									strokeWidth={2}
+									d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+								/>
+							</svg>
+							Delete Node
+						</button>
+					</div>
+				</div>
+
+				<div className="bg-purple-50 border border-purple-100 rounded-md p-3">
+					<h4 className="text-sm font-medium text-purple-800 mb-1">Tips</h4>
+					<ul className="text-xs text-purple-700 space-y-1 ml-5 list-disc">
+						<li>Be specific with your topic for better results</li>
+						<li>Try different variations to get diverse ideas</li>
+						<li>Selected ideas can be used as prompts in Draft nodes</li>
+					</ul>
+				</div>
+			</div>
+		);
+	};
+
+	// Content specific to Draft Generator node
+	const renderDraftGeneratorDetails = () => {
+		const { id, data } = selectedNode;
+
+		// Generate draft function
+		const generateDraft = async () => {
+			if (!data.prompt) return;
+
+			setIsGenerating(true);
+
+			try {
+				// Simulate API call
+				await new Promise((resolve) => setTimeout(resolve, 2000));
+
+				// Sample generated draft based on prompt
+				let generatedDraft = "";
+
+				// Generate more elaborate draft based on the prompt
+				if (data.prompt.includes("guide") || data.prompt.includes("how to")) {
+					generatedDraft = `# ${data.prompt}\n\n## Introduction\nThis comprehensive guide will walk you through everything you need to know about this topic. We'll cover the fundamentals, advanced strategies, and practical applications.\n\n## Getting Started\nBefore diving deep into the subject, it's important to understand the basic concepts and terminology. This foundation will help you grasp the more complex ideas presented later.\n\n## Key Strategies\n1. Start with a clear goal in mind\n2. Research thoroughly to understand current best practices\n3. Implement a systematic approach to track progress\n4. Regularly evaluate and adjust your methods\n\n## Advanced Techniques\nOnce you've mastered the basics, you can explore more sophisticated approaches that can significantly enhance your results. These techniques require a solid understanding of the fundamentals but offer substantial benefits.`;
+				} else if (data.prompt.includes("trends") || data.prompt.includes("future")) {
+					generatedDraft = `# ${data.prompt}\n\n## Current Landscape\nThe industry is currently experiencing rapid transformation driven by technological advancements, changing consumer behaviors, and evolving regulatory frameworks.\n\n## Emerging Trends\n\n### 1. AI-Powered Solutions\nArtificial intelligence is revolutionizing how businesses operate, offering unprecedented opportunities for automation, personalization, and data analysis.\n\n### 2. Sustainability Focus\nEnvironmental considerations are becoming central to strategic planning, with consumers increasingly favoring brands that demonstrate genuine commitment to sustainability.\n\n### 3. Hybrid Models\nThe integration of digital and physical experiences is creating new paradigms for customer engagement and service delivery.\n\n## Future Outlook\nLooking ahead, we can expect continued evolution in these areas, with organizations that successfully adapt positioning themselves for long-term success.`;
+				} else {
+					generatedDraft = `# ${data.prompt}\n\nThis comprehensive analysis explores the key aspects of the subject matter, examining both theoretical frameworks and practical applications. The content is structured to provide a clear understanding of core concepts while also highlighting nuanced perspectives that contribute to a more complete picture.\n\nThrough careful examination of available data and expert insights, we can identify several important patterns and considerations that should inform strategy development and implementation. These factors interact in complex ways, creating both challenges and opportunities for those working in this domain.\n\nKey takeaways include the importance of adaptive approaches, the value of integrated solutions, and the need for ongoing evaluation and refinement of methods. By applying these principles, organizations and individuals can navigate the evolving landscape more effectively and achieve superior outcomes.`;
+				}
+
+				// Update node data
+				updateNodeData(id, {
+					draft: generatedDraft,
+					hasGenerated: true,
+				});
+
+				// Update editable draft
+				setEditableDraft(generatedDraft);
+				setDraftEdited(false);
+			} catch (error) {
+				console.error("Failed to generate draft:", error);
+			} finally {
+				setIsGenerating(false);
+			}
+		};
+
+		// Handle draft changes
+		const handleDraftChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+			setEditableDraft(e.target.value);
+			setDraftEdited(true);
+		};
+
+		// Save edited draft
+		const saveDraft = () => {
+			updateNodeData(id, { draft: editableDraft });
+			setDraftEdited(false);
+		};
+
+		// Format the draft with markdown styling
+		const renderFormattedDraft = () => {
+			if (!data.draft) return null;
+
+			return (
+				<div className="prose prose-sm max-w-none">
+					{data.draft.split("\n").map((line: string, i: number) => (
+						<div key={i}>
+							{line.startsWith("# ") ? (
+								<h1 className="text-xl font-bold mb-3">{line.substring(2)}</h1>
+							) : line.startsWith("## ") ? (
+								<h2 className="text-lg font-bold mb-2 mt-4">{line.substring(3)}</h2>
+							) : line.startsWith("### ") ? (
+								<h3 className="text-base font-bold mb-2 mt-3">{line.substring(4)}</h3>
+							) : line.trim() === "" ? (
+								<div className="h-3"></div>
+							) : line.startsWith("1. ") || line.startsWith("2. ") || line.startsWith("3. ") ? (
+								<div className="pl-5 mb-1">• {line.substring(3)}</div>
+							) : (
+								<p className="my-1.5">{line}</p>
+							)}
+						</div>
+					))}
+				</div>
+			);
+		};
+
+		// Check for connected idea nodes
+		const connectedIdeas = data.sourceNodes?.filter((node: any) => node.type === "ideaNode" && node.data.selectedIdea) || [];
+
+		return (
+			<div className="space-y-5">
+				<div>
+					<h3 className="text-lg font-medium text-gray-800 mb-3">Draft Generator Configuration</h3>
+					<p className="text-sm text-gray-600 mb-5">
+						Create content drafts based on a prompt. You can manually enter a prompt or use an idea selected from a connected Content Ideas node.
+					</p>
+				</div>
+
+				<div className="space-y-4">
+					<div>
+						<label className="block text-sm font-medium text-gray-700 mb-1">Prompt</label>
+						<div className="flex space-x-2">
 							<textarea
 								value={data.prompt || ""}
-								onChange={(e) => updateNodeData(id, { ...data, prompt: e.target.value })}
-								placeholder="Enter prompt for draft generation"
-								className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-pink-500 focus:border-pink-500"
+								onChange={(e) => updateNodeData(id, { prompt: e.target.value })}
+								placeholder="Enter a prompt for draft generation"
+								className="flex-1 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-pink-500 focus:border-pink-500"
 								rows={3}
 							/>
 						</div>
 
-						{data.hasGenerated && data.draft && (
-							<div>
-								<label className="block text-sm font-medium text-gray-700 mb-1">Generated Draft</label>
-								<div className="bg-white border border-gray-200 rounded-md shadow-sm p-3 max-h-80 overflow-y-auto">
-									<p className="text-sm text-gray-700 whitespace-pre-wrap">{data.draft}</p>
-								</div>
-							</div>
-						)}
-					</div>
-				);
-
-			case "mediaNode":
-				return (
-					<div className="space-y-4">
-						<div>
-							<label className="block text-sm font-medium text-gray-700 mb-1">Search Query</label>
-							<input
-								type="text"
-								value={data.query || ""}
-								onChange={(e) => updateNodeData(id, { ...data, query: e.target.value })}
-								placeholder="Enter image search query"
-								className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-							/>
-						</div>
-
-						{data.hasSearched && data.images && (
-							<div>
-								<label className="block text-sm font-medium text-gray-700 mb-1">Image Results</label>
-								<div className="grid grid-cols-2 gap-2 max-h-60 overflow-y-auto p-2 bg-white border border-gray-200 rounded-md">
-									{data.images.slice(0, 6).map((image: any, idx: number) => (
-										<div
-											key={idx}
-											className={`cursor-pointer rounded-md overflow-hidden border-2 ${
-												data.selectedImage?.id === image.id ? "border-blue-500" : "border-transparent"
-											}`}
-											onClick={() => updateNodeData(id, { ...data, selectedImage: image })}>
-											<img src={image.urls.small} alt={image.alt_description || "Image"} className="w-full h-24 object-cover" />
-										</div>
+						{connectedIdeas.length > 0 && (
+							<div className="mt-2 text-xs text-gray-600 bg-blue-50 p-2 rounded-md border border-blue-100">
+								<div className="font-medium text-blue-700 mb-1">Connected Ideas</div>
+								<ul className="space-y-1">
+									{connectedIdeas.map((node: any, idx: number) => (
+										<li key={idx} className="flex items-center">
+											<svg
+												xmlns="http://www.w3.org/2000/svg"
+												className="h-3.5 w-3.5 text-blue-500 mr-1"
+												fill="none"
+												viewBox="0 0 24 24"
+												stroke="currentColor">
+												<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 5l7 7-7 7M5 5l7 7-7 7" />
+											</svg>
+											<span className="mr-1 text-gray-700">From "{node.data.title}":</span>
+											<span className="font-medium">{node.data.selectedIdea}</span>
+										</li>
 									))}
-								</div>
-							</div>
-						)}
-
-						{data.selectedImage && (
-							<div>
-								<label className="block text-sm font-medium text-gray-700 mb-1">Selected Image</label>
-								<div className="bg-blue-50 border border-blue-100 rounded-md p-2">
-									<img
-										src={data.selectedImage.urls.small}
-										alt={data.selectedImage.alt_description || "Selected image"}
-										className="w-full h-32 object-contain rounded-md"
-									/>
-								</div>
+								</ul>
 							</div>
 						)}
 					</div>
-				);
 
-			case "platformNode":
-				const platforms = [
-					{ id: "facebook", name: "Facebook" },
-					{ id: "instagram", name: "Instagram" },
-					{ id: "tiktok", name: "TikTok" },
-				];
+					<div className="flex justify-end">
+						<button
+							onClick={generateDraft}
+							disabled={!data.prompt || isGenerating}
+							className={`px-3 py-2 rounded-md text-sm text-white font-medium flex items-center ${
+								!data.prompt || isGenerating ? "bg-gray-400 cursor-not-allowed" : "bg-pink-600 hover:bg-pink-700"
+							}`}>
+							{isGenerating ? (
+								<>
+									<svg className="animate-spin h-4 w-4 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+										<circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+										<path
+											className="opacity-75"
+											fill="currentColor"
+											d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+									</svg>
+									Generating...
+								</>
+							) : (
+								<>
+									<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+										<path
+											strokeLinecap="round"
+											strokeLinejoin="round"
+											strokeWidth={2}
+											d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
+										/>
+									</svg>
+									Generate Draft
+								</>
+							)}
+						</button>
+					</div>
 
-				return (
-					<div className="space-y-4">
+					{data.hasGenerated && data.draft && (
 						<div>
-							<label className="block text-sm font-medium text-gray-700 mb-1">Select Platform</label>
-							<div className="grid grid-cols-3 gap-2">
-								{platforms.map((platform) => (
+							<div className="flex justify-between items-center mb-2">
+								<label className="block text-sm font-medium text-gray-700">Generated Draft</label>
+
+								<div className="flex space-x-2">
 									<button
-										key={platform.id}
-										onClick={() => updateNodeData(id, { ...data, platform: platform.id })}
-										className={`py-2 px-3 rounded-md text-sm ${
-											data.platform === platform.id
-												? "bg-purple-100 border-2 border-purple-500 text-purple-800"
-												: "bg-gray-100 hover:bg-gray-200 text-gray-700"
-										}`}>
-										{platform.name}
+										onClick={() => {
+											// Copy to clipboard
+											navigator.clipboard.writeText(data.draft);
+										}}
+										className="text-xs flex items-center text-gray-600 hover:text-gray-800">
+										<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+											<path
+												strokeLinecap="round"
+												strokeLinejoin="round"
+												strokeWidth={2}
+												d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"
+											/>
+										</svg>
+										Copy
 									</button>
-								))}
-							</div>
-						</div>
-
-						{data.platform && (
-							<div>
-								<label className="block text-sm font-medium text-gray-700 mb-1">Platform Settings</label>
-								<div className="bg-purple-50 border border-purple-100 rounded-md p-3">
-									<p className="text-sm font-medium text-purple-800">{platforms.find((p) => p.id === data.platform)?.name || data.platform}</p>
-									<p className="text-xs text-gray-600 mt-1">Content will be optimized for this platform.</p>
+									<button onClick={() => setDraftEdited(!draftEdited)} className="text-xs flex items-center text-gray-600 hover:text-gray-800">
+										<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+											<path
+												strokeLinecap="round"
+												strokeLinejoin="round"
+												strokeWidth={2}
+												d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+											/>
+										</svg>
+										{draftEdited ? "Preview" : "Edit"}
+									</button>
 								</div>
 							</div>
-						)}
-					</div>
-				);
 
-			case "conditionalNode":
-				const conditions = [
-					{ id: "hasDraft", name: "Has Draft" },
-					{ id: "hasImage", name: "Has Image" },
-					{ id: "isPlatformSelected", name: "Platform Selected" },
-				];
-
-				return (
-					<div className="space-y-4">
-						<div>
-							<label className="block text-sm font-medium text-gray-700 mb-1">Condition Type</label>
-							<select
-								value={data.condition || ""}
-								onChange={(e) => updateNodeData(id, { ...data, condition: e.target.value })}
-								className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-amber-500 focus:border-amber-500">
-								<option value="">Select a condition</option>
-								{conditions.map((condition) => (
-									<option key={condition.id} value={condition.id}>
-										{condition.name}
-									</option>
-								))}
-							</select>
-						</div>
-
-						{data.condition && (
-							<div className="bg-amber-50 border border-amber-100 rounded-md p-3">
-								<p className="text-sm font-medium text-amber-800 mb-1">Flow Paths:</p>
-								<div className="grid grid-cols-2 gap-2 text-sm">
-									<div className="bg-green-100 px-2 py-1 rounded-md text-green-800">
-										<span className="font-medium">If true:</span> Continue below
+							<div className="border border-gray-200 rounded-md shadow-sm max-h-80 overflow-y-auto">
+								{draftEdited ? (
+									<div className="flex flex-col h-full">
+										<textarea
+											value={editableDraft}
+											onChange={handleDraftChange}
+											className="w-full h-64 p-3 text-sm border-0 focus:outline-none focus:ring-0"
+											placeholder="Edit your draft here..."
+										/>
+										<div className="border-t p-2 bg-gray-50 flex justify-end">
+											<button onClick={saveDraft} className="px-2 py-1 bg-green-500 text-white rounded-md text-xs font-medium hover:bg-green-600">
+												Save Changes
+											</button>
+										</div>
 									</div>
-									<div className="bg-red-100 px-2 py-1 rounded-md text-red-800">
-										<span className="font-medium">If false:</span> Branch right
-									</div>
-								</div>
-							</div>
-						)}
-
-						<div>
-							<label className="block text-sm font-medium text-gray-700 mb-1">Condition Details</label>
-							<div className="bg-white border border-gray-200 rounded-md p-3 text-sm">
-								{data.condition === "hasDraft" && <p>Checks if a draft has been generated in any Draft node.</p>}
-								{data.condition === "hasImage" && <p>Checks if an image has been selected in any Media node.</p>}
-								{data.condition === "isPlatformSelected" && <p>Checks if a platform has been selected in any Platform node.</p>}
-								{!data.condition && <p className="text-gray-400 italic">Select a condition to see details</p>}
+								) : (
+									<div className="p-3 max-h-80 text-sm text-gray-800">{renderFormattedDraft()}</div>
+								)}
 							</div>
 						</div>
-					</div>
-				);
+					)}
+				</div>
 
+				<div className="border-t border-gray-200 pt-4 mt-6">
+					<h4 className="text-sm font-medium text-gray-700 mb-2">Options</h4>
+					<div className="flex space-x-2">
+						<button
+							onClick={() => {
+								// Clear draft
+								updateNodeData(id, {
+									draft: "",
+									hasGenerated: false,
+								});
+								setEditableDraft("");
+								setDraftEdited(false);
+							}}
+							className="px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md text-sm flex items-center">
+							<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+								<path
+									strokeLinecap="round"
+									strokeLinejoin="round"
+									strokeWidth={2}
+									d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+								/>
+							</svg>
+							Reset Draft
+						</button>
+						<button onClick={() => onDeleteNode(id)} className="px-3 py-2 bg-red-50 hover:bg-red-100 text-red-600 rounded-md text-sm flex items-center">
+							<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+								<path
+									strokeLinecap="round"
+									strokeLinejoin="round"
+									strokeWidth={2}
+									d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+								/>
+							</svg>
+							Delete Node
+						</button>
+					</div>
+				</div>
+
+				<div className="bg-pink-50 border border-pink-100 rounded-md p-3">
+					<h4 className="text-sm font-medium text-pink-800 mb-1">Tips</h4>
+					<ul className="text-xs text-pink-700 space-y-1 ml-5 list-disc">
+						<li>Be specific and detailed in your prompt for better results</li>
+						<li>Try including formatting instructions in your prompt</li>
+						<li>You can manually edit the generated draft to refine it</li>
+						<li>Connect to a Content Ideas node to use selected ideas as prompts</li>
+					</ul>
+				</div>
+			</div>
+		);
+	};
+	const renderMediaSelectionDetails = () => {
+		const { id, data } = selectedNode;
+		const [isSearching, setIsSearching] = useState(false);
+
+		// Search for images function
+		const searchImages = async () => {
+			if (!data.query) return;
+
+			setIsSearching(true);
+
+			try {
+				// Simulate API call
+				await new Promise((resolve) => setTimeout(resolve, 1500));
+
+				// Mock image results based on query
+				const mockImages = Array.from({ length: 12 }, (_, i) => ({
+					id: `img-${i + 1}-${Date.now()}`,
+					urls: {
+						thumb: `https://placehold.co/100x100/3b82f6/FFFFFF?text=${encodeURIComponent(data.query.slice(0, 10))}+${i + 1}`,
+						small: `https://placehold.co/300x200/3b82f6/FFFFFF?text=${encodeURIComponent(data.query.slice(0, 10))}+${i + 1}`,
+						regular: `https://placehold.co/800x600/3b82f6/FFFFFF?text=${encodeURIComponent(data.query.slice(0, 10))}+${i + 1}`,
+					},
+					alt_description: `${data.query} image ${i + 1}`,
+					description: `Image related to ${data.query}`,
+					user: {
+						name: "Demo User",
+					},
+				}));
+
+				// Update node data
+				updateNodeData(id, {
+					images: mockImages,
+					hasSearched: true,
+				});
+			} catch (error) {
+				console.error("Failed to search images:", error);
+			} finally {
+				setIsSearching(false);
+			}
+		};
+	};
+
+	// Function to get node-specific details
+	const renderNodeDetails = () => {
+		const nodeType = selectedNode.type;
+
+		switch (nodeType) {
+			case "ideaNode":
+				return renderContentIdeasDetails();
+			case "draftNode":
+				return renderDraftGeneratorDetails();
+			// Other node types will be implemented later
 			default:
 				return (
 					<div className="p-4">
 						<h3 className="font-medium text-gray-700 mb-2">Node Properties</h3>
+						<p className="text-sm text-gray-600 mb-4">Detailed editing for this node type will be implemented soon.</p>
 						<p>
-							<span className="font-medium">Type:</span> {type}
+							<span className="font-medium">Type:</span> {nodeType}
 						</p>
 						<p>
-							<span className="font-medium">ID:</span> {id}
+							<span className="font-medium">ID:</span> {selectedNode.id}
 						</p>
 					</div>
 				);
@@ -258,10 +558,10 @@ const NodeDetailsPanel: React.FC<NodeDetailsPanelProps> = ({ selectedNode, updat
 			<div className="p-4 border-b border-gray-200 bg-white sticky top-0 z-10">
 				<div className="flex items-center">
 					<NodeIcon type={nodeType} />
-					<h2 className="text-lg font-semibold ml-2">{getNodeTitle(nodeType)}</h2>
+					<h2 className="text-lg font-semibold ml-2">{selectedNode.data.title || getNodeTitle(nodeType)}</h2>
 				</div>
 			</div>
-			<div className="p-4">{getNodeDetails()}</div>
+			<div className="p-4">{renderNodeDetails()}</div>
 		</div>
 	);
 };

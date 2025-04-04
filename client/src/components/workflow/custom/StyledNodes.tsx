@@ -1,7 +1,8 @@
 // client/src/components/workflow/custom/StyledNodes.tsx
 import React, { useState } from "react";
 import { Handle, Position, NodeProps } from "reactflow";
-import NodeOptionsMenu from "./NodeOptionsMenu";
+import { EditableNodeWrapper, IdeaNodeEditContent, DraftNodeEditContent, MediaNodeEditContent, PlatformNodeEditContent, ConditionalNodeEditContent } from "./EditableNodeWrapper";
+
 // Base styled node that maintains consistent size
 interface StyledNodeProps extends NodeProps {
 	title: string;
@@ -59,7 +60,6 @@ const workflowTheme = {
 export const StyledNode: React.FC<StyledNodeProps> = ({ id, data, selected, title, icon, color, borderColor, children, handles = {} }) => {
 	// State for options menu
 	const [showOptions, setShowOptions] = useState(false);
-	const [menuPosition, setMenuPosition] = useState<{ x: number; y: number } | null>(null);
 
 	const handleOpenOptions = (e: React.MouseEvent) => {
 		e.stopPropagation(); // Prevent node selection when clicking options
@@ -151,10 +151,25 @@ export const StyledNode: React.FC<StyledNodeProps> = ({ id, data, selected, titl
 		}
 		setShowOptions(false);
 	};
-
+	const renderEditContent = (tempData: any, onChange: (key: string, value: any) => void) => {
+		switch (data.type || data.nodeType) {
+			case "ideaNode":
+				return <IdeaNodeEditContent data={tempData} onChange={onChange} />;
+			case "draftNode":
+				return <DraftNodeEditContent data={tempData} onChange={onChange} />;
+			case "mediaNode":
+				return <MediaNodeEditContent data={tempData} onChange={onChange} />;
+			case "platformNode":
+				return <PlatformNodeEditContent data={tempData} onChange={onChange} />;
+			case "conditionalNode":
+				return <ConditionalNodeEditContent data={tempData} onChange={onChange} />;
+			default:
+				return <div>No edit form available for this node type</div>;
+		}
+	};
 	return (
 		<div
-			className="relative bg-white rounded-xl shadow-lg overflow-hidden transition-all duration-200"
+			className="relative bg-white rounded-xl shadow-lg overflow-hidden transition-all duration-200 group"
 			style={{
 				width: "280px",
 				borderWidth: "2px",
@@ -194,9 +209,11 @@ export const StyledNode: React.FC<StyledNodeProps> = ({ id, data, selected, titl
 				</div>
 			</div>
 
-			{/* Content */}
+			{/* Content with edit wrapper */}
 			<div className="p-4 bg-opacity-10" style={{ backgroundColor: `var(--${color}-light)`, minHeight: "100px", maxHeight: "200px", overflow: "auto" }}>
-				{children ? children : <div className="text-sm text-gray-600">{data.label || "Configure this node..."}</div>}
+				<EditableNodeWrapper nodeId={id} nodeType={data.type || data.nodeType} data={data} renderEditContent={renderEditContent}>
+					{children ? children : <div className="text-sm text-gray-600">{data.label || "Configure this node..."}</div>}
+				</EditableNodeWrapper>
 			</div>
 
 			{/* Input Handles */}
@@ -279,11 +296,6 @@ export const StyledNode: React.FC<StyledNodeProps> = ({ id, data, selected, titl
 					}}
 					className="hover:scale-125 hover:shadow-md"
 				/>
-			)}
-
-			{/* Options Menu */}
-			{showOptions && menuPosition && (
-				<NodeOptionsMenu isOpen={showOptions} onClose={handleCloseOptions} onEdit={handleEdit} onDelete={handleDelete} position={menuPosition} />
 			)}
 		</div>
 	);

@@ -79,19 +79,37 @@ const ModernWorkflowCreator: React.FC = () => {
 		[reactFlowInstance, addNode]
 	);
 
-	// Handle node selection
 	const onNodeClick = useCallback(
 		(_event: React.MouseEvent, node: Node) => {
-			// Renamed to _event to indicate it's not used
-			setSelectedNode(node);
+			// Instead of just selecting the node, check if it should go into editing mode
+			const existingNode = nodes.find((n) => n.id === node.id);
+			if (existingNode) {
+				// Only toggle selection for nodes that aren't currently being edited
+				// This prevents edit mode from being interrupted by node selection
+				if (!existingNode.data.isEditing) {
+					setSelectedNode(existingNode === selectedNode ? null : existingNode);
+				}
+			}
 		},
-		[setSelectedNode]
+		[nodes, selectedNode, setSelectedNode]
 	);
 
 	// Handle background click to deselect node
-	const onPaneClick = useCallback(() => {
-		setSelectedNode(null);
-	}, [setSelectedNode]);
+	const onPaneClick = useCallback(
+		(_event: any) => {
+			// First check if any node is being edited
+			const editingNode = nodes.find((node) => node.data.isEditing);
+
+			// If clicking on the pane while a node is being edited, don't deselect
+			if (editingNode) {
+				return;
+			}
+
+			// Otherwise, deselect as normal
+			setSelectedNode(null);
+		},
+		[nodes, setSelectedNode]
+	);
 
 	// Handle node edit
 	const handleEditNode = useCallback(
@@ -99,11 +117,13 @@ const ModernWorkflowCreator: React.FC = () => {
 			// Find the node
 			const node = nodes.find((n) => n.id === nodeId);
 			if (node) {
-				// Select the node to show its details panel
+				// Toggle editing mode directly
+				updateNodeData(nodeId, { isEditing: true });
+				// Also select the node
 				setSelectedNode(node);
 			}
 		},
-		[nodes, setSelectedNode]
+		[nodes, updateNodeData, setSelectedNode]
 	);
 
 	// Handle node deletion
@@ -137,12 +157,6 @@ const ModernWorkflowCreator: React.FC = () => {
 		}
 	}, [resetWorkflow]);
 
-	// We need to pass these callbacks to each node component
-	// This allows the 3-dots menu to trigger these functions
-	const nodeInteractionHandlers = {
-		onEdit: handleEditNode,
-		onDelete: handleDeleteNode,
-	};
 	React.useEffect(() => {
 		// Add global handlers that can be called from anywhere
 		window.editWorkflowNode = (nodeId: string) => {
@@ -167,11 +181,17 @@ const ModernWorkflowCreator: React.FC = () => {
 			...node,
 			data: {
 				...node.data,
+				nodeType: node.type, // Store node type in data for easy access
 				onEdit: (nodeId: string) => handleEditNode(nodeId),
 				onDelete: (nodeId: string) => handleDeleteNode(nodeId),
+				// Add a method that can be called from EditableNodeWrapper to save changes
+				onSaveChanges: (nodeId: string, newData: any) => {
+					updateNodeData(nodeId, { ...newData, isEditing: false });
+				},
 			},
 		}));
-	}, [nodes, handleEditNode, handleDeleteNode]);
+	}, [nodes, handleEditNode, handleDeleteNode, updateNodeData]);
+
 	return (
 		<div className="flex h-screen bg-gray-50 overflow-hidden">
 			{/* Include the CSS variables for our workflow theme */}

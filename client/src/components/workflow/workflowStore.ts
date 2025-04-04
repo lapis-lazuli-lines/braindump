@@ -1,6 +1,6 @@
 // client/src/components/workflow/workflowStore.ts
 import { create } from "zustand";
-import { Connection, Edge, EdgeChange, Node, NodeChange, addEdge, OnNodesChange, OnEdgesChange, OnConnect, applyNodeChanges, applyEdgeChanges, getConnectedEdges } from "reactflow";
+import { Connection, Edge, EdgeChange, Node, NodeChange, addEdge, OnNodesChange, OnEdgesChange, OnConnect, applyNodeChanges, applyEdgeChanges } from "reactflow";
 
 interface WorkflowState {
 	nodes: Node[];
@@ -83,7 +83,6 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
 	removeNode: (nodeId: string) => {
 		// Get all edges connected to this node to remove them too
 		const nodesToRemove = new Set([nodeId]);
-		const edgesToRemove = get().edges.filter((edge) => nodesToRemove.has(edge.source) || nodesToRemove.has(edge.target));
 
 		// Remove the edges first
 		set({

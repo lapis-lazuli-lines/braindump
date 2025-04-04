@@ -20,7 +20,13 @@ const nodeTypes: NodeTypes = {
 	platformNode: PlatformNode,
 	conditionalNode: ConditionalNode,
 };
-
+// Add to the top of ModernWorkflowCreator.tsx
+declare global {
+	interface Window {
+		editWorkflowNode?: (nodeId: string) => void;
+		deleteWorkflowNode?: (nodeId: string) => void;
+	}
+}
 // Register custom edge types
 const edgeTypes: EdgeTypes = {
 	animated: AnimatedEdge,
@@ -58,11 +64,16 @@ const ModernWorkflowCreator: React.FC = () => {
 				y: event.clientY - reactFlowBounds.top,
 			});
 
-			// Add node with consistent initial sizing
+			// Add node with consistent initial sizing and include the node interaction handlers
 			addNode({
 				type,
 				position,
-				data: { label: `${type}` },
+				data: {
+					label: `${type}`,
+					// Add the node interaction handlers
+					onEdit: handleEditNode,
+					onDelete: handleDeleteNode,
+				},
 			});
 		},
 		[reactFlowInstance, addNode]
@@ -70,7 +81,8 @@ const ModernWorkflowCreator: React.FC = () => {
 
 	// Handle node selection
 	const onNodeClick = useCallback(
-		(event: React.MouseEvent, node: Node) => {
+		(_event: React.MouseEvent, node: Node) => {
+			// Renamed to _event to indicate it's not used
 			setSelectedNode(node);
 		},
 		[setSelectedNode]
@@ -97,10 +109,8 @@ const ModernWorkflowCreator: React.FC = () => {
 	// Handle node deletion
 	const handleDeleteNode = useCallback(
 		(nodeId: string) => {
-			if (confirm("Are you sure you want to delete this node?")) {
-				removeNode(nodeId);
-				setSelectedNode(null);
-			}
+			removeNode(nodeId);
+			setSelectedNode(null);
 		},
 		[removeNode, setSelectedNode]
 	);
@@ -133,16 +143,35 @@ const ModernWorkflowCreator: React.FC = () => {
 		onEdit: handleEditNode,
 		onDelete: handleDeleteNode,
 	};
+	React.useEffect(() => {
+		// Add global handlers that can be called from anywhere
+		window.editWorkflowNode = (nodeId: string) => {
+			console.log("Edit node requested:", nodeId);
+			handleEditNode(nodeId);
+		};
 
+		window.deleteWorkflowNode = (nodeId: string) => {
+			console.log("Delete node requested:", nodeId);
+			handleDeleteNode(nodeId);
+		};
+
+		return () => {
+			// Clean up
+			window.editWorkflowNode = undefined;
+			window.deleteWorkflowNode = undefined;
+		};
+	}, [handleEditNode, handleDeleteNode]);
 	// Deep merge the callbacks into the node data
-	const nodesWithHandlers = nodes.map((node) => ({
-		...node,
-		data: {
-			...node.data,
-			...nodeInteractionHandlers,
-		},
-	}));
-
+	const nodesWithHandlers = React.useMemo(() => {
+		return nodes.map((node) => ({
+			...node,
+			data: {
+				...node.data,
+				onEdit: (nodeId: string) => handleEditNode(nodeId),
+				onDelete: (nodeId: string) => handleDeleteNode(nodeId),
+			},
+		}));
+	}, [nodes, handleEditNode, handleDeleteNode]);
 	return (
 		<div className="flex h-screen bg-gray-50 overflow-hidden">
 			{/* Include the CSS variables for our workflow theme */}
@@ -323,53 +352,53 @@ const ModernWorkflowCreator: React.FC = () => {
 			{/* Additional CSS for workflow canvas */}
 			<style>
 				{`
-				.react-flow__handle {
-					opacity: 0.8;
-					transition: opacity 0.2s, transform 0.2s;
-				}
+        .react-flow__handle {
+          opacity: 0.8;
+          transition: opacity 0.2s, transform 0.2s;
+        }
 
-				.react-flow__handle:hover {
-					opacity: 1;
-					transform: scale(1.2);
-				}
+        .react-flow__handle:hover {
+          opacity: 1;
+          transform: scale(1.2);
+        }
 
-				.react-flow__edge {
-					cursor: pointer;
-				}
+        .react-flow__edge {
+          cursor: pointer;
+        }
 
-				.react-flow__edge-path {
-					stroke-width: 2.5;
-				}
+        .react-flow__edge-path {
+          stroke-width: 2.5;
+        }
 
-				.react-flow__edge.selected .react-flow__edge-path {
-					stroke-width: 3.5;
-				}
+        .react-flow__edge.selected .react-flow__edge-path {
+          stroke-width: 3.5;
+        }
 
-				.react-flow__node {
-					transition: transform 0.2s ease;
-				}
+        .react-flow__node {
+          transition: transform 0.2s ease;
+        }
 
-				.react-flow__node.selected {
-					transform: scale(1.02);
-				}
+        .react-flow__node.selected {
+          transform: scale(1.02);
+        }
 
-				@keyframes pulse {
-					0% {
-						box-shadow: 0 0 0 0 rgba(124, 58, 237, 0.4);
-					}
-					70% {
-						box-shadow: 0 0 0 10px rgba(124, 58, 237, 0);
-					}
-					100% {
-						box-shadow: 0 0 0 0 rgba(124, 58, 237, 0);
-					}
-				}
+        @keyframes pulse {
+          0% {
+            box-shadow: 0 0 0 0 rgba(124, 58, 237, 0.4);
+          }
+          70% {
+            box-shadow: 0 0 0 10px rgba(124, 58, 237, 0);
+          }
+          100% {
+            box-shadow: 0 0 0 0 rgba(124, 58, 237, 0);
+          }
+        }
 
-				.dragging .react-flow__handle {
-					animation: pulse 1.5s infinite;
-					opacity: 1;
-				}
-			`}
+        .dragging .react-flow__handle {
+          animation: pulse 1.5s infinite;
+          opacity: 1;
+        }
+      `}
 			</style>
 		</div>
 	);

@@ -1,5 +1,5 @@
 // client/src/components/workflow/custom/NodeOptionsMenu.tsx
-import React, { useState, useRef, useEffect } from "react";
+import React, { useRef, useEffect } from "react";
 
 interface NodeOptionsMenuProps {
 	isOpen: boolean;
@@ -31,18 +31,38 @@ const NodeOptionsMenu: React.FC<NodeOptionsMenuProps> = ({ isOpen, onClose, onEd
 
 	if (!isOpen) return null;
 
+	// Calculate position - ensure menu doesn't go off-screen
+	const calculatePosition = () => {
+		if (!position) return { top: "0px", right: "0px" };
+
+		// Get viewport dimensions
+		const viewportWidth = window.innerWidth;
+		const viewportHeight = window.innerHeight;
+
+		// Calculate menu position
+		let x = position.x;
+		let y = position.y;
+
+		// Adjust if menu would go off the right edge (assuming menu width of 150px)
+		if (x + 150 > viewportWidth) {
+			x = x - 150;
+		}
+
+		// Adjust if menu would go off the bottom (assuming menu height of 100px)
+		if (y + 100 > viewportHeight) {
+			y = y - 100;
+		}
+
+		return {
+			top: `${y}px`,
+			left: `${x}px`,
+		};
+	};
+
+	const positionStyle = calculatePosition();
+
 	return (
-		<div
-			ref={menuRef}
-			className="absolute z-10 bg-white rounded-lg shadow-lg py-2 min-w-[150px]"
-			style={
-				position
-					? {
-							top: `${position.y}px`,
-							left: `${position.x}px`,
-					  }
-					: { top: "0px", right: "0px" }
-			}>
+		<div ref={menuRef} className="absolute z-50 bg-white rounded-lg shadow-lg py-2 min-w-[150px]" style={positionStyle}>
 			<button className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center" onClick={onEdit}>
 				<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
 					<path

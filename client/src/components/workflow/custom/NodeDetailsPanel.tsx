@@ -4,8 +4,9 @@ import { Node } from "reactflow";
 interface NodeDetailsPanelProps {
 	selectedNode: Node | null;
 	updateNodeData: (nodeId: string, data: any) => void;
+	onDeleteNode: (nodeId: string) => void; // Added this prop
 }
-const NodeDetailsPanel: React.FC<NodeDetailsPanelProps> = ({ selectedNode, updateNodeData }) => {
+const NodeDetailsPanel: React.FC<NodeDetailsPanelProps> = ({ selectedNode, updateNodeData, onDeleteNode }) => {
 	if (!selectedNode) {
 		return (
 			<div className="w-80 bg-gray-50 border-l border-gray-200 overflow-auto shadow-inner">

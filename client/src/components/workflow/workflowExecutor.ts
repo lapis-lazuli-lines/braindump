@@ -103,6 +103,9 @@ export class WorkflowExecutor {
 		}
 	}
 
+	// Update the determineNextNode method in WorkflowExecutor class (workflowExecutor.ts)
+	// to properly handle conditional nodes
+
 	private determineNextNode(nodeId: string): string | null {
 		const node = this.getNode(nodeId);
 		if (!node) return null;
@@ -142,6 +145,16 @@ export class WorkflowExecutor {
 					// Check if previous platform node has selection
 					conditionResult = this.checkPlatformSelected();
 					break;
+				case "contentLength":
+					// Check if content length meets the threshold
+					conditionResult = this.checkContentLength(nodeData.conditionValue || 250);
+					break;
+				case "custom":
+					// Evaluate custom condition
+					conditionResult = this.evaluateCustomCondition(nodeData.customCondition);
+					break;
+				default:
+					conditionResult = false;
 			}
 
 			// Store the result in nodeData for visualization purposes
@@ -155,6 +168,74 @@ export class WorkflowExecutor {
 
 		// For non-conditional nodes, just return the first next node
 		return nextNodes[0];
+	}
+
+	// Add new condition evaluation methods
+	private checkContentLength(threshold: number): boolean {
+		// Find draft nodes
+		const draftNodes = this.context.nodes.filter((node) => node.type === "draftNode");
+
+		// Check if any draft node has content exceeding the threshold
+		return draftNodes.some((node) => {
+			const nodeData = this.context.nodeData[node.id] || {};
+			if (!nodeData.draft) return false;
+
+			// Count words (split by whitespace)
+			const wordCount = nodeData.draft.split(/\s+/).filter(Boolean).length;
+			return wordCount >= threshold;
+		});
+	}
+
+	private evaluateCustomCondition(expression: string | undefined): boolean {
+		if (!expression) return false;
+
+		try {
+			// Prepare context variables for the evaluation
+			const draft = this.getDraftContent();
+			const image = this.getSelectedImage();
+			const platform = this.getSelectedPlatform();
+
+			// Create a safe evaluation context
+			const context = { draft, image, platform };
+
+			// Simple expression evaluator (this is a basic implementation)
+			// In a production environment, you would want to use a safer method
+			// or a dedicated expression evaluation library
+			const result = new Function("draft", "image", "platform", `return ${expression}`).call(null, context.draft, context.image, context.platform);
+
+			return Boolean(result);
+		} catch (error) {
+			console.error("Error evaluating custom condition:", error);
+			return false;
+		}
+	}
+
+	// Helper methods to get data for conditions
+	private getDraftContent(): string | null {
+		const draftNodes = this.context.nodes.filter((node) => node.type === "draftNode");
+		for (const node of draftNodes) {
+			const nodeData = this.context.nodeData[node.id] || {};
+			if (nodeData.draft) return nodeData.draft;
+		}
+		return null;
+	}
+
+	private getSelectedImage(): any | null {
+		const mediaNodes = this.context.nodes.filter((node) => node.type === "mediaNode");
+		for (const node of mediaNodes) {
+			const nodeData = this.context.nodeData[node.id] || {};
+			if (nodeData.selectedImage) return nodeData.selectedImage;
+		}
+		return null;
+	}
+
+	private getSelectedPlatform(): string | null {
+		const platformNodes = this.context.nodes.filter((node) => node.type === "platformNode");
+		for (const node of platformNodes) {
+			const nodeData = this.context.nodeData[node.id] || {};
+			if (nodeData.platform) return nodeData.platform;
+		}
+		return null;
 	}
 
 	private checkDraftExists(): boolean {

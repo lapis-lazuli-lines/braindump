@@ -22,7 +22,7 @@ const NodeDetailsPanel: React.FC<NodeDetailsPanelProps> = ({ selectedNode, updat
 	const [editableDraft, setEditableDraft] = useState("");
 	const [draftEdited, setDraftEdited] = useState(false);
 	const [showImagePreview, setShowImagePreview] = useState(false);
-	const [showPreview, setShowPreview] = useState(false);
+	const [_showPreview, setShowPreview] = useState(false);
 
 	// Reset states when selected node changes
 	useEffect(() => {
@@ -721,7 +721,6 @@ const NodeDetailsPanel: React.FC<NodeDetailsPanelProps> = ({ selectedNode, updat
 			</div>
 		);
 	};
-	// Function to get node-specific details
 	const renderNodeDetails = () => {
 		const nodeType = selectedNode.type;
 
@@ -732,7 +731,12 @@ const NodeDetailsPanel: React.FC<NodeDetailsPanelProps> = ({ selectedNode, updat
 				return renderDraftGeneratorDetails();
 			case "mediaNode":
 				return renderMediaSelectionDetails();
-			// Other node types will be implemented later
+			case "platformNode":
+				// Call the exported function with the required parameters
+				return renderPlatformSelectionDetails(selectedNode, updateNodeData, onDeleteNode);
+			case "conditionalNode":
+				// Call the exported function with the required parameters
+				return renderConditionalNodeDetails(selectedNode, updateNodeData, onDeleteNode);
 			default:
 				return (
 					<div className="p-4">
@@ -868,3 +872,315 @@ function NodeIcon({ type }: { type: string }) {
 }
 
 export default NodeDetailsPanel;
+export const toggleStyles = `
+  .toggle-checkbox:checked {
+    right: 0;
+    border-color: #8b5cf6;
+  }
+  .toggle-label {
+    transition: background-color 0.2s ease;
+  }
+`;
+
+// Helper function to safely render content with a platform selection panel
+export function renderPlatformSelectionDetails(selectedNode: any, updateNodeData: any, onDeleteNode: any) {
+	if (!selectedNode) return null;
+
+	const { id, data } = selectedNode;
+
+	// Define available platforms with metadata
+	const platforms = [
+		{ id: "facebook", name: "Facebook", description: "Good for community building and longer content" },
+		{ id: "instagram", name: "Instagram", description: "Ideal for visual content and stories" },
+		{ id: "twitter", name: "Twitter", description: "Best for short updates and news" },
+		{ id: "linkedin", name: "LinkedIn", description: "Perfect for professional and B2B content" },
+		{ id: "tiktok", name: "TikTok", description: "For short-form video content" },
+	];
+
+	// Select a platform
+	const selectPlatform = (platformId: string) => {
+		updateNodeData(id, { platform: platformId });
+	};
+
+	// Update schedule
+	const updateSchedule = (date: string) => {
+		updateNodeData(id, { scheduledTime: date ? new Date(date).toISOString() : null });
+	};
+
+	// Helper function to format date for datetime-local input
+	const formatDateForInput = (date: string | null | undefined) => {
+		if (!date) return "";
+		const d = new Date(date);
+		return d.toISOString().slice(0, 16); // Format: YYYY-MM-DDThh:mm
+	};
+
+	// Update platform-specific settings
+	const updateSettings = (setting: string, value: any) => {
+		updateNodeData(id, {
+			postSettings: {
+				...(data.postSettings || {}),
+				[setting]: value,
+			},
+		});
+	};
+
+	return (
+		<div className="space-y-5">
+			<div>
+				<h3 className="text-lg font-medium text-gray-800 mb-3">Platform Selection</h3>
+				<p className="text-sm text-gray-600 mb-5">Choose which platform to publish your content to and configure platform-specific settings.</p>
+			</div>
+
+			<div className="space-y-4">
+				<div>
+					<label className="block text-sm font-medium text-gray-700 mb-1">Select Platform</label>
+					<div className="grid grid-cols-3 gap-2">
+						{platforms.map((platform) => (
+							<button
+								key={platform.id}
+								onClick={() => selectPlatform(platform.id)}
+								className={`p-3 rounded-lg flex flex-col items-center justify-center transition-all ${
+									data.platform === platform.id
+										? "bg-purple-100 border-2 border-purple-500 text-purple-800"
+										: "bg-gray-100 border border-gray-200 hover:bg-gray-200 text-gray-700"
+								}`}>
+								<div className="text-sm font-medium">{platform.name}</div>
+							</button>
+						))}
+					</div>
+				</div>
+
+				{data.platform && (
+					<>
+						<div>
+							<label className="block text-sm font-medium text-gray-700 mb-1">Schedule Post</label>
+							<div className="flex space-x-2">
+								<input
+									type="datetime-local"
+									value={formatDateForInput(data.scheduledTime)}
+									onChange={(e) => updateSchedule(e.target.value)}
+									className="flex-1 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-purple-500 focus:border-purple-500"
+								/>
+								{data.scheduledTime && (
+									<button onClick={() => updateSchedule("")} className="px-2 py-2 bg-gray-100 text-gray-600 rounded-md hover:bg-gray-200" title="Clear schedule">
+										<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+											<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+										</svg>
+									</button>
+								)}
+							</div>
+							<div className="mt-1 text-xs text-gray-500">
+								{data.scheduledTime ? `Scheduled for: ${new Date(data.scheduledTime).toLocaleString()}` : "Leave empty to post immediately"}
+							</div>
+						</div>
+
+						<div>
+							<label className="block text-sm font-medium text-gray-700 mb-2">Platform Settings</label>
+
+							{/* Twitter-specific settings */}
+							{data.platform === "twitter" && (
+								<div className="bg-white border border-gray-200 rounded-md p-3 space-y-3">
+									<div className="flex items-center justify-between">
+										<label className="text-sm text-gray-700">Character limit</label>
+										<select
+											value={data.postSettings?.characterLimit || 280}
+											onChange={(e) => updateSettings("characterLimit", parseInt(e.target.value))}
+											className="px-2 py-1 border border-gray-300 rounded-md text-sm">
+											<option value="280">Standard (280)</option>
+											<option value="4000">Twitter Blue (4000)</option>
+										</select>
+									</div>
+								</div>
+							)}
+						</div>
+					</>
+				)}
+			</div>
+
+			<div className="border-t border-gray-200 pt-4 mt-6">
+				<h4 className="text-sm font-medium text-gray-700 mb-2">Options</h4>
+				<div className="flex space-x-2">
+					<button
+						onClick={() => {
+							// Reset platform settings
+							updateNodeData(id, {
+								platform: null,
+								scheduledTime: null,
+								postSettings: {},
+							});
+						}}
+						className="px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md text-sm flex items-center">
+						<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+							<path
+								strokeLinecap="round"
+								strokeLinejoin="round"
+								strokeWidth={2}
+								d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+							/>
+						</svg>
+						Reset Platform
+					</button>
+					<button onClick={() => onDeleteNode(id)} className="px-3 py-2 bg-red-50 hover:bg-red-100 text-red-600 rounded-md text-sm flex items-center">
+						<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+							<path
+								strokeLinecap="round"
+								strokeLinejoin="round"
+								strokeWidth={2}
+								d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+							/>
+						</svg>
+						Delete Node
+					</button>
+				</div>
+			</div>
+		</div>
+	);
+}
+
+// Helper function to safely render content with a conditional node panel
+export function renderConditionalNodeDetails(selectedNode: any, updateNodeData: any, onDeleteNode: any) {
+	if (!selectedNode) return null;
+
+	const { id, data } = selectedNode;
+
+	// Define available conditions
+	const conditions = [
+		{ id: "hasDraft", name: "Has Draft", description: "Checks if a draft has been created" },
+		{ id: "hasImage", name: "Has Image", description: "Checks if an image has been selected" },
+		{ id: "isPlatformSelected", name: "Platform Selected", description: "Checks if a platform has been chosen" },
+		{ id: "contentLength", name: "Content Length", description: "Checks word count against threshold" },
+		{ id: "custom", name: "Custom Condition", description: "Define your own condition" },
+	];
+
+	// Update condition selection
+	const selectCondition = (conditionId: string) => {
+		updateNodeData(id, { condition: conditionId });
+	};
+
+	// For conditions that need parameters
+	const updateConditionValue = (value: number) => {
+		updateNodeData(id, { conditionValue: value });
+	};
+
+	// Handle custom condition input
+	const updateCustomCondition = (expression: string) => {
+		updateNodeData(id, { customCondition: expression });
+	};
+
+	return (
+		<div className="space-y-5">
+			<div>
+				<h3 className="text-lg font-medium text-gray-800 mb-3">Conditional Branch</h3>
+				<p className="text-sm text-gray-600 mb-5">
+					Create branches in your workflow based on conditions. The workflow will follow the TRUE path if the condition is met, otherwise it will follow the FALSE path.
+				</p>
+			</div>
+
+			<div className="space-y-4">
+				<div>
+					<label className="block text-sm font-medium text-gray-700 mb-1">Select Condition</label>
+					<div className="grid grid-cols-1 gap-2">
+						{conditions.map((condition) => (
+							<button
+								key={condition.id}
+								onClick={() => selectCondition(condition.id)}
+								className={`px-4 py-2 text-left rounded-lg flex items-center transition-all ${
+									data.condition === condition.id
+										? "bg-amber-100 border-2 border-amber-500 text-amber-800"
+										: "bg-gray-100 border border-gray-200 hover:bg-gray-200 text-gray-700"
+								}`}>
+								<div>
+									<div className="font-medium">{condition.name}</div>
+									<div className="text-xs text-gray-500">{condition.description}</div>
+								</div>
+							</button>
+						))}
+					</div>
+				</div>
+
+				{data.condition === "contentLength" && (
+					<div>
+						<label className="block text-sm font-medium text-gray-700 mb-1">Word Count Threshold</label>
+						<div className="flex items-center">
+							<input
+								type="number"
+								min="1"
+								max="10000"
+								value={data.conditionValue || 250}
+								onChange={(e) => updateConditionValue(parseInt(e.target.value))}
+								className="flex-1 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-amber-500 focus:border-amber-500"
+							/>
+							<span className="ml-2 text-gray-600">words</span>
+						</div>
+						<div className="mt-1 text-xs text-gray-500">Content with at least this many words will follow the TRUE path, otherwise FALSE path</div>
+					</div>
+				)}
+
+				{data.condition === "custom" && (
+					<div>
+						<label className="block text-sm font-medium text-gray-700 mb-1">Custom Expression</label>
+						<textarea
+							value={data.customCondition || ""}
+							onChange={(e) => updateCustomCondition(e.target.value)}
+							placeholder="Enter a custom condition expression"
+							className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-amber-500 focus:border-amber-500 font-mono"
+							rows={3}
+						/>
+						<div className="mt-1 text-xs text-gray-500">
+							<p>Use JavaScript-like expressions. Available variables:</p>
+							<ul className="list-disc ml-5 mt-1">
+								<li>
+									<code className="bg-gray-100 px-1 rounded">draft</code> - Content draft
+								</li>
+								<li>
+									<code className="bg-gray-100 px-1 rounded">image</code> - Selected image
+								</li>
+								<li>
+									<code className="bg-gray-100 px-1 rounded">platform</code> - Selected platform
+								</li>
+							</ul>
+						</div>
+					</div>
+				)}
+			</div>
+
+			<div className="border-t border-gray-200 pt-4 mt-6">
+				<h4 className="text-sm font-medium text-gray-700 mb-2">Options</h4>
+				<div className="flex space-x-2">
+					<button
+						onClick={() => {
+							// Reset conditional settings
+							updateNodeData(id, {
+								condition: null,
+								conditionValue: null,
+								customCondition: "",
+								result: undefined,
+							});
+						}}
+						className="px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md text-sm flex items-center">
+						<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+							<path
+								strokeLinecap="round"
+								strokeLinejoin="round"
+								strokeWidth={2}
+								d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+							/>
+						</svg>
+						Reset Condition
+					</button>
+					<button onClick={() => onDeleteNode(id)} className="px-3 py-2 bg-red-50 hover:bg-red-100 text-red-600 rounded-md text-sm flex items-center">
+						<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+							<path
+								strokeLinecap="round"
+								strokeLinejoin="round"
+								strokeWidth={2}
+								d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+							/>
+						</svg>
+						Delete Node
+					</button>
+				</div>
+			</div>
+		</div>
+	);
+}

@@ -1,4 +1,4 @@
-// EditableNodeWrapper.tsx
+// client/src/components/workflow/custom/EditableNodeWrapper.tsx
 import React, { useState, useRef, useEffect } from "react";
 import { useWorkflowStore } from "../workflowStore";
 
@@ -225,13 +225,15 @@ export const PlatformNodeEditContent: React.FC<{
 		{ id: "facebook", name: "Facebook" },
 		{ id: "instagram", name: "Instagram" },
 		{ id: "tiktok", name: "TikTok" },
+		{ id: "twitter", name: "Twitter" },
+		{ id: "linkedin", name: "LinkedIn" },
 	];
 
 	return (
 		<div className="space-y-3">
 			<div>
 				<label className="block text-xs font-medium text-gray-700 mb-1">Select Platform</label>
-				<div className="grid grid-cols-3 gap-1">
+				<div className="grid grid-cols-2 gap-1">
 					{platforms.map((platform) => (
 						<button
 							key={platform.id}
@@ -243,6 +245,16 @@ export const PlatformNodeEditContent: React.FC<{
 						</button>
 					))}
 				</div>
+			</div>
+
+			<div>
+				<label className="block text-xs font-medium text-gray-700 mb-1">Schedule Post</label>
+				<input
+					type="datetime-local"
+					value={data.scheduledTime || ""}
+					onChange={(e) => onChange("scheduledTime", e.target.value)}
+					className="w-full px-2 py-1 text-sm border border-purple-300 rounded-md focus:outline-none focus:ring-1 focus:ring-purple-500"
+				/>
 			</div>
 		</div>
 	);
@@ -257,6 +269,8 @@ export const ConditionalNodeEditContent: React.FC<{
 		{ id: "hasDraft", name: "Has Draft" },
 		{ id: "hasImage", name: "Has Image" },
 		{ id: "isPlatformSelected", name: "Platform Selected" },
+		{ id: "contentLength", name: "Content Length" },
+		{ id: "custom", name: "Custom Condition" },
 	];
 
 	return (
@@ -275,6 +289,33 @@ export const ConditionalNodeEditContent: React.FC<{
 					))}
 				</select>
 			</div>
+
+			{data.condition === "contentLength" && (
+				<div>
+					<label className="block text-xs font-medium text-gray-700 mb-1">Word Count Threshold</label>
+					<input
+						type="number"
+						min="1"
+						max="10000"
+						value={data.conditionValue || 250}
+						onChange={(e) => onChange("conditionValue", parseInt(e.target.value))}
+						className="w-full px-2 py-1 text-sm border border-amber-300 rounded-md focus:outline-none focus:ring-1 focus:ring-amber-500"
+					/>
+				</div>
+			)}
+
+			{data.condition === "custom" && (
+				<div>
+					<label className="block text-xs font-medium text-gray-700 mb-1">Custom Expression</label>
+					<textarea
+						value={data.customCondition || ""}
+						onChange={(e) => onChange("customCondition", e.target.value)}
+						placeholder="Enter a custom condition expression"
+						className="w-full px-2 py-1 text-sm border border-amber-300 rounded-md focus:outline-none focus:ring-1 focus:ring-amber-500 font-mono"
+						rows={3}
+					/>
+				</div>
+			)}
 		</div>
 	);
 };

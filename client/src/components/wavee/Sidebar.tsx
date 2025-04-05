@@ -3,18 +3,22 @@ import React, { useState } from "react";
 import { useAuthContext } from "@/contexts/AuthContext";
 import useLocalStorage from "@/hooks/useLocalStorage";
 import Logo from "@/components/common/Logo";
+import { useProfileStore, getProfilePictureUrl } from "@/stores/profileStore";
 
 interface SidebarProps {
 	visible?: boolean;
 	onContentCreator?: () => void;
 	onWorkflowCreator?: () => void;
 	currentScreen?: string;
+	onProfileClick?: () => void;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ visible = true, onContentCreator, onWorkflowCreator, currentScreen }) => {
+const Sidebar: React.FC<SidebarProps> = ({ visible = true, onContentCreator, onWorkflowCreator, currentScreen, onProfileClick }) => {
 	const { signOut, userFullName, userImageUrl } = useAuthContext();
 	const [isCollapsed, setIsCollapsed] = useLocalStorage("sidebar-collapsed", false);
 	const [expandedSections, setExpandedSections] = useState<string[]>(["content"]);
+	const profileState = useProfileStore();
+	const profilePicUrl = getProfilePictureUrl(profileState);
 
 	const toggleCollapsed = () => {
 		setIsCollapsed(!isCollapsed);
@@ -202,14 +206,6 @@ const Sidebar: React.FC<SidebarProps> = ({ visible = true, onContentCreator, onW
 
 			{/* Bottom section - Theme toggle, Help & Logout */}
 			<div className="absolute bottom-5 left-0 right-0 px-4 space-y-3">
-				{/* Theme toggle */}
-				{!isCollapsed && (
-					<div className="flex items-center justify-between p-2 bg-[#3d1261] bg-opacity-30 rounded-xl">
-						<button className="px-3 py-1.5 bg-white text-[#1e0936] text-sm font-medium rounded-md shadow-sm">Light</button>
-						<button className="px-3 py-1.5 text-gray-300 text-sm font-medium rounded-md">Dark</button>
-					</div>
-				)}
-
 				{/* Help */}
 				<div className="flex items-center py-3 rounded-xl cursor-pointer text-gray-300 hover:bg-[#3d1261] hover:text-white transition-colors">
 					<div className="w-12 flex justify-center">
@@ -227,24 +223,18 @@ const Sidebar: React.FC<SidebarProps> = ({ visible = true, onContentCreator, onW
 
 				{/* User Profile */}
 				{!isCollapsed ? (
-					<div className="p-3 bg-[#3d1261] bg-opacity-40 rounded-xl flex items-center">
-						<div className="w-8 h-8 rounded-full flex items-center justify-center overflow-hidden bg-[#e03885]">
-							{userImageUrl ? (
-								<img src={userImageUrl} alt={userFullName || ""} className="w-full h-full object-cover" />
-							) : (
-								<span className="text-white font-medium">{userFullName?.charAt(0) || "E"}</span>
-							)}
-						</div>
-						<div className="ml-3 overflow-hidden">
-							<p className="text-sm font-medium text-white truncate">{userFullName || "Emilia Caitlin"}</p>
-							<p className="text-xs text-gray-300 truncate">hey@unspace.agency</p>
+					<div className="p-3 bg-[#3d1261] bg-opacity-40 rounded-xl flex items-center" onClick={onProfileClick}>
+						<img src={profilePicUrl} alt="Profile" className="w-10 h-10 rounded-full" />
+						<div>
+							<div className="font-medium text-white">{profileState.name}</div>
+							<div className="text-xs text-gray-300">{profileState.email}</div>
 						</div>
 					</div>
 				) : (
-					<div className="flex justify-center">
+					<div className="flex justify-center" onClick={onProfileClick}>
 						<div className="w-8 h-8 rounded-full flex items-center justify-center overflow-hidden bg-[#e03885]">
-							{userImageUrl ? (
-								<img src={userImageUrl} alt={userFullName || ""} className="w-full h-full object-cover" />
+							{profilePicUrl ? (
+								<img src={profilePicUrl} alt={userFullName || ""} className="w-full h-full object-cover" />
 							) : (
 								<span className="text-white font-medium">{userFullName?.charAt(0) || "E"}</span>
 							)}

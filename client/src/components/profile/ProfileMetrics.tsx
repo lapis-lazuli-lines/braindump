@@ -60,8 +60,8 @@ const ProfileMetrics: React.FC = () => {
 	];
 
 	return (
-		<div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-5 bg-white rounded-lg shadow-sm -mt-4">
-			<div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+		<div className="bg-white rounded-lg shadow-sm py-5 px-6 -mt-6 relative z-10">
+			<div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
 				{metricsItems.map((item, index) => (
 					<div key={index} className="flex flex-col items-center justify-center p-3 rounded-lg hover:bg-gray-50 transition-colors">
 						<div className="flex items-center mb-2">

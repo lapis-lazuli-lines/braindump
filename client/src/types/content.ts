@@ -13,7 +13,7 @@ export interface SavedDraft {
 	platform?: string;
 	user_id?: string;
 	combined_content?: string;
-
+	hashtags?: string;
 	// Optional image from Unsplash
 	image?: {
 		id: string;

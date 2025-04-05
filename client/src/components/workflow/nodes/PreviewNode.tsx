@@ -1,22 +1,9 @@
-// client/src/components/workflow/nodes/PreviewNode.tsx
+// src/components/workflow/nodes/PreviewNode.tsx
 import React, { useState, useEffect } from "react";
-import { NodeProps } from "reactflow";
-import BaseNode from "./BaseNode";
-import { useWorkflowStore } from "../stores/workflowStore";
-import FacebookPreview from "../../platforms/FacebookPreview";
-import InstagramPreview from "../../platforms/InstagramPreview";
-import TwitterPreview from "../../platforms/TwitterPreview";
-
-interface PlatformContent {
-	platform: string;
-	text: string;
-	mediaUrls: string[];
-	links: string[];
-	hashtags: string[];
-	formattedText: string;
-	warnings: string[];
-	isValid: boolean;
-}
+import { NodeProps, Position, Handle } from "reactflow";
+import { useWorkflowStore } from "../workflowStore";
+import platformRegistry from "@/services/platforms/PlatformRegistry";
+import { PlatformContent } from "@/services/platforms/PlatformAdapter";
 
 interface PreviewNodeData {
 	platform?: string;
@@ -27,25 +14,35 @@ interface PreviewNodeData {
 	feedback: string;
 }
 
-const PreviewNode: React.FC<NodeProps> = ({ id, data, selected, ...rest }) => {
-	const [previewData, setPreviewData] = useState<PreviewNodeData>(data);
+/**
+ * Enhanced Preview Node
+ * Shows platform-specific content previews with different device sizes and themes
+ */
+const PreviewNode: React.FC<NodeProps> = ({ id, data, selected }) => {
+	const [previewData, setPreviewData] = useState<PreviewNodeData>({
+		viewAs: data.viewAs || "mobile",
+		darkMode: data.darkMode || false,
+		approvalStatus: data.approvalStatus || null,
+		feedback: data.feedback || "",
+		platform: data.platform,
+		content: data.content,
+	});
+
 	const updateNodeData = useWorkflowStore((state) => state.updateNodeData);
+	const nodes = useWorkflowStore((state) => state.nodes);
+	const edges = useWorkflowStore((state) => state.edges);
 
 	// Extract platform information from incoming connections
 	useEffect(() => {
-		const sourceNodes = data.connections?.inputs?.content || [];
+		// Check for platform node connections
+		const platformConnections = edges.filter((edge) => edge.target === id && edge.targetHandle === "content");
 
-		if (sourceNodes.length > 0) {
-			const platformNodes = sourceNodes
-				.map((sourceId) => {
-					const node = useWorkflowStore.getState().nodes.find((n) => n.id === sourceId);
-					return node?.type === "platformNode" ? node : null;
-				})
-				.filter(Boolean);
+		if (platformConnections.length > 0) {
+			const platformNodeId = platformConnections[0].source;
+			const platformNode = nodes.find((node) => node.id === platformNodeId);
 
-			if (platformNodes.length > 0) {
-				const platformNode = platformNodes[0];
-				const platform = platformNode?.data?.platform;
+			if (platformNode && platformNode.type === "platformNode") {
+				const platform = platformNode.data?.platform;
 
 				if (platform && platform !== previewData.platform) {
 					setPreviewData((prev) => ({ ...prev, platform }));
@@ -53,85 +50,64 @@ const PreviewNode: React.FC<NodeProps> = ({ id, data, selected, ...rest }) => {
 				}
 			}
 		}
-	}, [data.connections, id, previewData.platform, updateNodeData]);
+	}, [id, nodes, edges, previewData.platform, updateNodeData]);
 
 	// Generate content for preview based on connected nodes
 	useEffect(() => {
-		const generateContentPreview = () => {
-			const { nodes, edges } = useWorkflowStore.getState();
+		if (!previewData.platform) return;
 
-			// Find all nodes connected to this preview node's content input
-			const inputConnections = edges.filter((edge) => edge.target === id && edge.targetHandle === "content");
+		// Find the platform adapter
+		const platformAdapter = platformRegistry.getAdapter(previewData.platform);
+		if (!platformAdapter) return;
 
-			if (inputConnections.length === 0) return;
+		// Find content from platform node
+		const incomingConnections = edges.filter((edge) => edge.target === id && edge.targetHandle === "content");
 
-			// Get the source node (should be a platform node)
-			const platformNodeId = inputConnections[0].source;
-			const platformNode = nodes.find((n) => n.id === platformNodeId);
+		if (incomingConnections.length === 0) return;
 
-			if (!platformNode || platformNode.type !== "platformNode") return;
+		const platformNodeId = incomingConnections[0].source;
+		const platformNode = nodes.find((node) => node.id === platformNodeId);
 
-			// Get the platform
-			const platform = platformNode.data.platform;
-			if (!platform) return;
+		if (!platformNode || platformNode.type !== "platformNode") return;
 
-			// Find connected draft, media, and hashtag nodes to the platform node
-			const platformInputs = edges.filter((edge) => edge.target === platformNodeId);
+		// Find source nodes connected to the platform node
+		const platformInputs = edges.filter((edge) => edge.target === platformNodeId);
 
-			// Find draft content
-			const draftNodeId = platformInputs.find((e) => e.targetHandle === "draft")?.source;
-			const draftNode = nodes.find((n) => n.id === draftNodeId);
-			const draftContent = draftNode?.data?.draft || "";
+		// Extract draft content
+		const draftNodeId = platformInputs.find((e) => e.targetHandle === "draft")?.source;
+		const draftNode = nodes.find((n) => n.id === draftNodeId);
+		const draftContent = draftNode?.data?.draft || "";
 
-			// Find media
-			const mediaNodeId = platformInputs.find((e) => e.targetHandle === "media")?.source;
-			const mediaNode = nodes.find((n) => n.id === mediaNodeId);
-			const mediaUrl = mediaNode?.data?.selectedImage?.urls?.regular || "";
+		// Extract media
+		const mediaNodeId = platformInputs.find((e) => e.targetHandle === "media")?.source;
+		const mediaNode = nodes.find((n) => n.id === mediaNodeId);
+		const mediaUrl = mediaNode?.data?.selectedImage?.urls?.regular || "";
 
-			// Find hashtags
-			const hashtagNodeId = platformInputs.find((e) => e.targetHandle === "hashtags")?.source;
-			const hashtagNode = nodes.find((n) => n.id === hashtagNodeId);
-			const hashtags = hashtagNode?.data?.hashtags || [];
+		// Extract hashtags
+		const hashtagNodeId = platformInputs.find((e) => e.targetHandle === "hashtags")?.source;
+		const hashtagNode = nodes.find((n) => n.id === hashtagNodeId);
+		const hashtags = hashtagNode?.data?.hashtags || [];
 
-			// Format content for specific platform
-			let formattedText = draftContent;
+		// Create content object using the platform adapter
+		if (draftContent || mediaUrl) {
 			const mediaUrls = mediaUrl ? [mediaUrl] : [];
-			const warnings: string[] = [];
 
-			// Apply platform-specific formatting
-			if (platform === "twitter" && draftContent.length > 280) {
-				warnings.push("Tweet exceeds 280 character limit");
-				formattedText = draftContent.substring(0, 277) + "...";
+			// Format content for the specific platform
+			const platformContent = platformAdapter.formatContent({
+				prompt: draftNode?.data?.prompt || "",
+				draft: draftContent,
+				image: mediaNode?.data?.selectedImage,
+				platform: previewData.platform,
+				media_files: [],
+				hashtags: hashtags,
+			});
+
+			if (platformContent) {
+				setPreviewData((prev) => ({ ...prev, content: platformContent }));
+				updateNodeData(id, { content: platformContent });
 			}
-
-			// Add hashtags if available
-			if (hashtags.length > 0) {
-				formattedText += "\n\n" + hashtags.map((tag) => `#${tag}`).join(" ");
-			}
-
-			// Extract links from text
-			const linkRegex = /(https?:\/\/[^\s]+)/g;
-			const links = formattedText.match(linkRegex) || [];
-
-			// Create platform content object
-			const content: PlatformContent = {
-				platform,
-				text: draftContent,
-				mediaUrls,
-				links,
-				hashtags,
-				formattedText,
-				warnings,
-				isValid: warnings.length === 0,
-			};
-
-			// Update node data with content
-			setPreviewData((prev) => ({ ...prev, content }));
-			updateNodeData(id, { content });
-		};
-
-		generateContentPreview();
-	}, [data.connections, id, updateNodeData, useWorkflowStore]);
+		}
+	}, [id, previewData.platform, nodes, edges, updateNodeData]);
 
 	// Handle device toggle
 	const handleDeviceToggle = () => {
@@ -178,7 +154,17 @@ const PreviewNode: React.FC<NodeProps> = ({ id, data, selected, ...rest }) => {
 			);
 		}
 
-		const { platform, content } = previewData;
+		// Get the platform adapter and preview component
+		const platformAdapter = platformRegistry.getAdapter(previewData.platform);
+		if (!platformAdapter) {
+			return (
+				<div className="flex items-center justify-center h-32 bg-red-50 rounded-lg border border-red-200">
+					<p className="text-red-500 text-sm">Platform adapter not found</p>
+				</div>
+			);
+		}
+
+		const PreviewComponent = platformAdapter.getPreviewComponent();
 
 		// Apply device size constraints
 		const containerClass = previewData.viewAs === "mobile" ? "max-w-xs mx-auto" : "w-full";
@@ -188,23 +174,7 @@ const PreviewNode: React.FC<NodeProps> = ({ id, data, selected, ...rest }) => {
 
 		return (
 			<div className={`overflow-hidden ${containerClass} ${darkModeClass}`}>
-				{platform === "facebook" && <FacebookPreview content={content} />}
-				{platform === "instagram" && <InstagramPreview content={content} />}
-				{platform === "twitter" && <TwitterPreview content={content} />}
-
-				{/* For other platforms, render a generic preview */}
-				{!["facebook", "instagram", "twitter"].includes(platform) && (
-					<div className="bg-white border border-gray-200 rounded-lg p-4">
-						<h3 className="font-medium mb-2 capitalize">{platform} Preview</h3>
-						<div className="whitespace-pre-wrap text-sm mb-2">{content.formattedText}</div>
-
-						{content.mediaUrls.length > 0 && (
-							<div className="mt-2">
-								<img src={content.mediaUrls[0]} alt="Preview media" className="max-h-40 rounded-lg object-cover" />
-							</div>
-						)}
-					</div>
-				)}
+				<PreviewComponent content={previewData.content} />
 			</div>
 		);
 	};
@@ -298,30 +268,19 @@ const PreviewNode: React.FC<NodeProps> = ({ id, data, selected, ...rest }) => {
 	};
 
 	return (
-		<BaseNode id={id} data={data} selected={selected} {...rest}>
-			<div className="space-y-2">
-				{/* Platform name and preview controls */}
-				{previewData.platform ? (
-					<>
-						<div className="flex justify-between items-center">
-							<span className="text-sm font-medium capitalize">{previewData.platform} Preview</span>
-						</div>
-
-						{/* Preview controls */}
-						{renderControls()}
-
-						{/* Platform-specific preview */}
-						{renderPlatformPreview()}
-
-						{/* Warnings */}
-						{renderWarnings()}
-
-						{/* Approval actions */}
-						{renderApprovalActions()}
-					</>
-				) : (
-					<div className="flex flex-col items-center justify-center h-32 bg-gray-50 rounded-lg border border-gray-200">
-						<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-gray-400 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+		<div
+			className={`bg-white rounded-xl shadow-lg overflow-hidden transition-all duration-200 ${selected ? "ring-2 ring-blue-500" : "ring-1 ring-gray-200"}`}
+			style={{ width: "280px" }}>
+			{/* Header */}
+			<div
+				className="font-bold rounded-t-lg text-white p-3 flex items-center justify-between"
+				style={{
+					background: "#0369a1", // Blue color
+					boxShadow: "0 1px 3px rgba(0,0,0,0.12)",
+				}}>
+				<div className="flex items-center">
+					<div className="mr-2 flex-shrink-0 w-8 h-8 flex items-center justify-center bg-white bg-opacity-20 rounded-full">
+						<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
 							<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
 							<path
 								strokeLinecap="round"
@@ -330,11 +289,96 @@ const PreviewNode: React.FC<NodeProps> = ({ id, data, selected, ...rest }) => {
 								d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
 							/>
 						</svg>
-						<p className="text-gray-500 text-sm">Connect to a Platform Node to preview content</p>
 					</div>
-				)}
+					<div className="font-semibold">Content Preview</div>
+				</div>
+				<div className="text-xs bg-white bg-opacity-20 px-2 py-1 rounded-full">{id.toString().substring(0, 4)}</div>
 			</div>
-		</BaseNode>
+
+			{/* Content */}
+			<div className="p-4 bg-opacity-10" style={{ backgroundColor: "#f0f9ff", minHeight: "100px", maxHeight: "300px", overflow: "auto" }}>
+				<div className="space-y-2">
+					{/* Platform name and preview controls */}
+					{previewData.platform ? (
+						<>
+							<div className="flex justify-between items-center">
+								<span className="text-sm font-medium capitalize">{previewData.platform} Preview</span>
+							</div>
+
+							{/* Preview controls */}
+							{renderControls()}
+
+							{/* Platform-specific preview */}
+							{renderPlatformPreview()}
+
+							{/* Warnings */}
+							{renderWarnings()}
+
+							{/* Approval actions */}
+							{renderApprovalActions()}
+						</>
+					) : (
+						<div className="flex flex-col items-center justify-center h-32 bg-gray-50 rounded-lg border border-gray-200">
+							<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-gray-400 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+								<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+								<path
+									strokeLinecap="round"
+									strokeLinejoin="round"
+									strokeWidth={2}
+									d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+								/>
+							</svg>
+							<p className="text-gray-500 text-sm">Connect to a Platform Node to preview content</p>
+						</div>
+					)}
+				</div>
+			</div>
+
+			{/* Input Handles */}
+			<Handle
+				type="target"
+				position={Position.Top}
+				id="content"
+				style={{
+					background: "#0369a1",
+					width: "14px",
+					height: "14px",
+					top: "-7px",
+					border: "2px solid white",
+					zIndex: 10,
+				}}
+			/>
+			<Handle
+				type="target"
+				position={Position.Left}
+				id="audience"
+				style={{
+					background: "#0369a1",
+					width: "14px",
+					height: "14px",
+					left: "-7px",
+					top: "50%",
+					transform: "translateY(-50%)",
+					border: "2px solid white",
+					zIndex: 10,
+				}}
+			/>
+
+			{/* Output Handle */}
+			<Handle
+				type="source"
+				position={Position.Bottom}
+				id="approved"
+				style={{
+					background: "#0369a1",
+					width: "14px",
+					height: "14px",
+					bottom: "-7px",
+					border: "2px solid white",
+					zIndex: 10,
+				}}
+			/>
+		</div>
 	);
 };
 

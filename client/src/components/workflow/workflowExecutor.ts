@@ -1,312 +1,1001 @@
-// client/src/components/workflow/workflowExecutor.ts
+// src/components/workflow/workflowExecutor.ts
 import { Node, Edge } from "reactflow";
 import { contentApi, imageApi } from "@/api/apiClient";
-import { updateNodeConnections, extractWorkflowData } from "./nodeConnections";
+import { updateNodesWithConnections } from "./registry/connectionValidator";
+import { enhancedNodeRegistry, DataType } from "./registry/enhancedNodeRegistry";
+import DataFlowTransformer from "./utils/dataFlowTransformer";
 
+// Execution state for a single node
+interface NodeExecutionState {
+  status: "pending" | "running" | "completed" | "error";
+  startTime?: number;
+  endTime?: number;
+  error?: string;
+  result?: any;
+  inputs?: Record<string, any>;
+  outputs?: Record<string, any>;
+}
+
+// Overall execution context
 interface ExecutionContext {
-	nodes: Node[];
-	edges: Edge[];
-	nodeData: Record<string, any>;
-	currentNodeId: string | null;
+  nodes: Node[];
+  edges: Edge[];
+  nodeData: Record<string, any>;
+  executionState: Record<string, NodeExecutionState>;
+  currentNodeId: string | null;
+  visitedNodes: Set<string>;
+  execPath: string[];
+  errors: {
+    nodeId: string;
+    message: string;
+    details?: any;
+  }[];
 }
 
+/**
+ * Enhanced Workflow Executor
+ * Handles execution of workflow nodes with improved error handling and data flow
+ */
 export class WorkflowExecutor {
-	private context: ExecutionContext;
+  private context: ExecutionContext;
+  private maxExecutionDepth: number = 50; // Prevent infinite loops
+  private onNodeExecutionStart?: (nodeId: string) => void;
+  private onNodeExecutionComplete?: (nodeId: string, result: any) => void;
+  private onNodeExecutionError?: (nodeId: string, error: any) => void;
 
-	constructor(nodes: Node[], edges: Edge[]) {
-		// Update node connections before initializing
-		const updatedNodes = updateNodeConnections(nodes, edges);
+  constructor(
+    nodes: Node[], 
+    edges: Edge[],
+    options?: {
+      onNodeExecutionStart?: (nodeId: string) => void;
+      onNodeExecutionComplete?: (nodeId: string, result: any) => void;
+      onNodeExecutionError?: (nodeId: string, error: any) => void;
+    }
+  ) {
+    // Update node connections before initializing
+    const updatedNodes = updateNodesWithConnections(nodes, edges);
 
-		this.context = {
-			nodes: updatedNodes,
-			edges,
-			nodeData: {},
-			currentNodeId: this.findStartNode(updatedNodes)?.id || null,
-		};
+    this.context = {
+      nodes: updatedNodes,
+      edges,
+      nodeData: {},
+      executionState: {},
+      currentNodeId: this.findStartNode(updatedNodes)?.id || null,
+      visitedNodes: new Set<string>(),
+      execPath: [],
+      errors: []
+    };
 
-		// Initialize node data from the nodes
-		updatedNodes.forEach((node) => {
-			this.context.nodeData[node.id] = { ...node.data };
-		});
-	}
+    // Set callbacks if provided
+    if (options) {
+      this.onNodeExecutionStart = options.onNodeExecutionStart;
+      this.onNodeExecutionComplete = options.onNodeExecutionComplete;
+      this.onNodeExecutionError = options.onNodeExecutionError;
+    }
 
-	private findStartNode(nodes: Node[]): Node | undefined {
-		return nodes.find((node) => node.type === "triggerNode");
-	}
+    // Initialize node data and execution state
+    updatedNodes.forEach(node => {
+      // Start with data from the node itself
+      this.context.nodeData[node.id] = { ...node.data };
+      
+      // Initialize execution state
+      this.context.executionState[node.id] = {
+        status: "pending",
+        inputs: {},
+        outputs: {}
+      };
+    });
+  }
 
-	private findNextNodes(nodeId: string): string[] {
-		return this.context.edges.filter((edge) => edge.source === nodeId).map((edge) => edge.target);
-	}
+  /**
+   * Find the starting node for the workflow
+   */
+  private findStartNode(nodes: Node[]): Node | undefined {
+    // Find source nodes that have no incoming edges
+    return nodes.find(node => {
+      // Check if this node has any incoming edges
+      const hasIncomingEdges = this.context.edges.some(edge => 
+        edge.target === node.id
+      );
+      
+      // Return nodes with no incoming edges
+      return !hasIncomingEdges;
+    });
+  }
 
-	private getNode(nodeId: string): Node | undefined {
-		return this.context.nodes.find((node) => node.id === nodeId);
-	}
+  /**
+   * Find next nodes connected to the current node
+   */
+  private findNextNodes(nodeId: string): string[] {
+    const outgoingEdges = this.context.edges.filter(edge => 
+      edge.source === nodeId
+    );
+    
+    return outgoingEdges.map(edge => edge.target);
+  }
 
-	private async executeNodeActions(nodeId: string): Promise<void> {
-		const node = this.getNode(nodeId);
-		if (!node) return;
+  /**
+   * Get a node by ID
+   */
+  private getNode(nodeId: string): Node | undefined {
+    return this.context.nodes.find(node => node.id === nodeId);
+  }
 
-		const nodeType = node.type;
-		const nodeData = this.context.nodeData[nodeId] || {};
+  /**
+   * Execute actions for a specific node
+   */
+  private async executeNodeActions(nodeId: string): Promise<void> {
+    const node = this.getNode(nodeId);
+    if (!node) {
+      throw new Error(`Node ${nodeId} not found`);
+    }
 
-		console.log(`Executing node: ${nodeId} (${nodeType})`);
+    const nodeType = node.type || "";
+    const nodeData = this.context.nodeData[nodeId] || {};
+    
+    // Update execution state
+    this.context.executionState[nodeId] = {
+      ...this.context.executionState[nodeId],
+      status: "running",
+      startTime: Date.now()
+    };
+    
+    // Notify of execution start
+    if (this.onNodeExecutionStart) {
+      this.onNodeExecutionStart(nodeId);
+    }
+    
+    console.log(`Executing node: ${nodeId} (${nodeType})`);
 
-		try {
-			switch (nodeType) {
-				case "ideaNode":
-					if (nodeData.topic) {
-						const ideas = await contentApi.generateIdeas(nodeData.topic);
-						this.context.nodeData[nodeId] = {
-							...nodeData,
-							ideas,
-							hasGenerated: true,
-						};
-					}
-					break;
+    try {
+      // Collect inputs from incoming connections
+      const inputs = this.gatherNodeInputs(nodeId);
+      this.context.executionState[nodeId].inputs = inputs;
+      
+      let result: any = null;
+      
+      // Execute node-specific actions
+      switch (nodeType) {
+        case "ideaNode":
+          result = await this.executeIdeaNode(nodeId, nodeData, inputs);
+          break;
+        
+        case "draftNode":
+          result = await this.executeDraftNode(nodeId, nodeData, inputs);
+          break;
+        
+        case "mediaNode":
+          result = await this.executeMediaNode(nodeId, nodeData, inputs);
+          break;
+        
+        case "conditionalNode":
+          result = await this.executeConditionalNode(nodeId, nodeData, inputs);
+          break;
+        
+        case "platformNode":
+          result = await this.executePlatformNode(nodeId, nodeData, inputs);
+          break;
+        
+        case "previewNode":
+          result = await this.executePreviewNode(nodeId, nodeData, inputs);
+          break;
+        
+        case "hashtagNode":
+          result = await this.executeHashtagNode(nodeId, nodeData, inputs);
+          break;
+        
+        default:
+          console.log(`No actions defined for node type: ${nodeType}`);
+          result = { status: "success", data: nodeData };
+      }
+      
+      // Update node data and execution state
+      this.context.nodeData[nodeId] = {
+        ...nodeData,
+        ...result.data,
+        executionCompleted: true
+      };
+      
+      this.context.executionState[nodeId] = {
+        ...this.context.executionState[nodeId],
+        status: "completed",
+        endTime: Date.now(),
+        result: result.data,
+        outputs: result.data
+      };
+      
+      // Notify of completion
+      if (this.onNodeExecutionComplete) {
+        this.onNodeExecutionComplete(nodeId, result);
+      }
+      
+    } catch (error) {
+      console.error(`Error executing node ${nodeId}:`, error);
+      
+      this.context.executionState[nodeId] = {
+        ...this.context.executionState[nodeId],
+        status: "error",
+        endTime: Date.now(),
+        error: error instanceof Error ? error.message : String(error)
+      };
+      
+      this.context.errors.push({
+        nodeId,
+        message: error instanceof Error ? error.message : String(error),
+        details: error
+      });
+      
+      // Notify of error
+      if (this.onNodeExecutionError) {
+        this.onNodeExecutionError(nodeId, error);
+      }
+      
+      throw error;
+    }
+  }
 
-				case "draftNode":
-					if (nodeData.prompt) {
-						const draft = await contentApi.generateDraft(nodeData.prompt);
-						this.context.nodeData[nodeId] = {
-							...nodeData,
-							draft,
-							hasGenerated: true,
-						};
-					}
-					break;
+  /**
+   * Gather inputs from connected nodes
+   */
+  private gatherNodeInputs(nodeId: string): Record<string, any> {
+    const node = this.getNode(nodeId);
+    if (!node) return {};
+    
+    const incomingEdges = this.context.edges.filter(edge => 
+      edge.target === nodeId
+    );
+    
+    const inputs: Record<string, any> = {};
+    
+    // Process each incoming edge
+    incomingEdges.forEach(edge => {
+      const sourceNodeId = edge.source;
+      const sourceNode = this.getNode(sourceNodeId);
+      
+      if (!sourceNode) return;
+      
+      const sourceData = this.context.nodeData[sourceNodeId];
+      const targetHandle = edge.targetHandle || "input";
+      
+      // Transform data based on source and target types
+      const sourceNodeType = sourceNode.type || "";
+      const targetNodeType = node.type || "";
+      
+      // Add to inputs collection, grouped by handle
+      if (!inputs[targetHandle]) {
+        inputs[targetHandle] = [];
+      }
+      
+      // Add source data
+      inputs[targetHandle].push({
+        nodeId: sourceNodeId,
+        nodeType: sourceNodeType,
+        data: sourceData
+      });
+    });
+    
+    return inputs;
+  }
 
-				case "mediaNode":
-					if (nodeData.query && !nodeData.hasSearched) {
-						const images = await imageApi.suggestImages(nodeData.query);
-						this.context.nodeData[nodeId] = {
-							...nodeData,
-							images,
-							hasSearched: true,
-						};
-					}
-					break;
+  /**
+   * Execute IdeaNode
+   */
+  private async executeIdeaNode(
+    nodeId: string, 
+    nodeData: any, 
+    inputs: Record<string, any>
+  ): Promise<{ status: string; data: any }> {
+    if (nodeData.topic && !nodeData.hasGenerated) {
+      try {
+        // Use content API to generate ideas
+        const ideas = await contentApi.generateIdeas(nodeData.topic);
+        
+        return {
+          status: "success",
+          data: {
+            ideas,
+            hasGenerated: true,
+            selectedIdea: nodeData.selectedIdea || (ideas.length > 0 ? ideas[0] : null)
+          }
+        };
+      } catch (error) {
+        console.error("Failed to generate ideas:", error);
+        throw new Error("Failed to generate ideas from API");
+      }
+    }
+    
+    // If already generated or no topic, just return current data
+    return {
+      status: "success",
+      data: nodeData
+    };
+  }
 
-				case "conditionalNode":
-					// Conditional nodes don't have actions to execute
-					break;
+  /**
+   * Execute DraftNode
+   */
+  private async executeDraftNode(
+    nodeId: string, 
+    nodeData: any, 
+    inputs: Record<string, any>
+  ): Promise<{ status: string; data: any }> {
+    // Check if we have input from an idea node
+    const ideaInputs = inputs.idea || [];
+    let prompt = nodeData.prompt || "";
+    
+    // Use idea from an idea node if available and no prompt is set
+    if (ideaInputs.length > 0 && !prompt) {
+      const ideaNode = ideaInputs[0];
+      if (ideaNode.data.selectedIdea) {
+        prompt = ideaNode.data.selectedIdea;
+      }
+    }
+    
+    // Check audience inputs for audience targeting
+    const audienceInputs = inputs.audience || [];
+    let audienceContext = "";
+    
+    if (audienceInputs.length > 0) {
+      const audience = audienceInputs[0].data;
+      if (audience.ageRange || audience.interests?.length > 0) {
+        // Format audience context to add to prompt
+        audienceContext = "\nTarget audience:";
+        
+        if (audience.ageRange) {
+          audienceContext += ` Age ${audience.ageRange.min}-${audience.ageRange.max}`;
+        }
+        
+        if (audience.interests?.length > 0) {
+          audienceContext += ` Interests: ${audience.interests.join(", ")}`;
+        }
+      }
+    }
+    
+    // Generate draft if we have a prompt and haven't already generated
+    if (prompt && !nodeData.draft) {
+      try {
+        // Add audience context if available
+        const fullPrompt = audienceContext ? `${prompt}\n${audienceContext}` : prompt;
+        
+        // Call API to generate draft
+        const draft = await contentApi.generateDraft(fullPrompt);
+        
+        return {
+          status: "success",
+          data: {
+            prompt,
+            draft,
+            hasGenerated: true,
+            audienceContext: audienceContext || undefined
+          }
+        };
+      } catch (error) {
+        console.error("Failed to generate draft:", error);
+        throw new Error("Failed to generate draft from API");
+      }
+    }
+    
+    // Update with audience context even if we don't need to generate a draft
+    if (audienceContext && !nodeData.audienceContext) {
+      return {
+        status: "success",
+        data: {
+          ...nodeData,
+          audienceContext
+        }
+      };
+    }
+    
+    // If already generated or no prompt, just return current data
+    return {
+      status: "success",
+      data: nodeData
+    };
+  }
 
-				case "platformNode":
-					// Platform nodes don't have actions to execute
-					break;
+  /**
+   * Execute MediaNode
+   */
+  private async executeMediaNode(
+    nodeId: string, 
+    nodeData: any, 
+    inputs: Record<string, any>
+  ): Promise<{ status: string; data: any }> {
+    // Check if we have input from a draft node for context
+    const draftInputs = inputs.draft || [];
+    let query = nodeData.query || "";
+    
+    // Use draft content for context if available and no query is set
+    if (draftInputs.length > 0 && !query) {
+      const draftNode = draftInputs[0];
+      if (draftNode.data.prompt) {
+        // Use the prompt as a search query
+        query = draftNode.data.prompt;
+      }
+    }
+    
+    // Search for images if we have a query and haven't already searched
+    if (query && !nodeData.hasSearched) {
+      try {
+        // Call API to search for images
+        const images = await imageApi.suggestImages(query);
+        
+        return {
+          status: "success",
+          data: {
+            query,
+            images,
+            hasSearched: true,
+            selectedImage: nodeData.selectedImage || (images.length > 0 ? images[0] : null)
+          }
+        };
+      } catch (error) {
+        console.error("Failed to search for images:", error);
+        throw new Error("Failed to search for images from API");
+      }
+    }
+    
+    // If already searched or no query, just return current data
+    return {
+      status: "success",
+      data: nodeData
+    };
+  }
 
-				default:
-					console.log(`No actions defined for node type: ${nodeType}`);
-			}
-		} catch (error) {
-			console.error(`Error executing node ${nodeId}:`, error);
-			throw error;
-		}
-	}
+  /**
+   * Execute HashtagNode
+   */
+  private async executeHashtagNode(
+    nodeId: string, 
+    nodeData: any, 
+    inputs: Record<string, any>
+  ): Promise<{ status: string; data: any }> {
+    // Check if we have input from a draft node
+    const draftInputs = inputs.draft || [];
+    
+    if (draftInputs.length > 0 && !nodeData.hashtags?.length) {
+      const draftNode = draftInputs[0];
+      const draftContent = draftNode.data.draft || draftNode.data.prompt || "";
+      
+      if (draftContent) {
+        try {
+          // Generate hashtags from draft content (simulated)
+          // In a real implementation, this would call an API
+          const hashtags = generateHashtagsFromContent(
+            draftContent, 
+            nodeData.count || 5
+          );
+          
+          return {
+            status: "success",
+            data: {
+              hashtags,
+              count: nodeData.count || 5,
+              source: "draft",
+              sourceContent: draftContent.substring(0, 100) + "..."
+            }
+          };
+        } catch (error) {
+          console.error("Failed to generate hashtags:", error);
+          throw new Error("Failed to generate hashtags");
+        }
+      }
+    }
+    
+    // If already generated or no input, just return current data
+    return {
+      status: "success",
+      data: nodeData
+    };
+  }
 
-	// Update the determineNextNode method in WorkflowExecutor class (workflowExecutor.ts)
-	// to properly handle conditional nodes
+  /**
+   * Execute PlatformNode
+   */
+  private async executePlatformNode(
+    nodeId: string, 
+    nodeData: any, 
+    inputs: Record<string, any>
+  ): Promise<{ status: string; data: any }> {
+    // Gather inputs from connected nodes
+    const draftInputs = inputs.draft || [];
+    const mediaInputs = inputs.media || [];
+    const hashtagInputs = inputs.hashtags || [];
+    const audienceInputs = inputs.audience || [];
+    
+    // Collect data for platform content
+    const platformContent: any = {
+      platform: nodeData.platform || "",
+      draft: "",
+      media: null,
+      hashtags: [],
+      audience: null,
+      postSettings: nodeData.postSettings || {}
+    };
+    
+    // Add draft content
+    if (draftInputs.length > 0) {
+      const draftNode = draftInputs[0];
+      platformContent.draft = draftNode.data.draft || "";
+      platformContent.prompt = draftNode.data.prompt || "";
+    }
+    
+    // Add media
+    if (mediaInputs.length > 0) {
+      const mediaNode = mediaInputs[0];
+      platformContent.media = mediaNode.data.selectedImage;
+    }
+    
+    // Add hashtags
+    if (hashtagInputs.length > 0) {
+      const hashtagNode = hashtagInputs[0];
+      platformContent.hashtags = hashtagNode.data.hashtags || [];
+    }
+    
+    // Add audience targeting
+    if (audienceInputs.length > 0) {
+      const audienceNode = audienceInputs[0];
+      platformContent.audience = {
+        ageRange: audienceNode.data.ageRange,
+        gender: audienceNode.data.gender,
+        interests: audienceNode.data.interests,
+        locations: audienceNode.data.locations
+      };
+    }
+    
+    // If the platform is set, format content for that platform
+    if (platformContent.platform && platformContent.draft) {
+      // Format content for the specific platform
+      // This would typically call platform-specific APIs or services
+      
+      return {
+        status: "success",
+        data: {
+          ...nodeData,
+          platformContent,
+          formattedContent: formatContentForPlatform(
+            platformContent.draft,
+            platformContent.platform,
+            platformContent.hashtags
+          ),
+          isReady: true
+        }
+      };
+    }
+    
+    // Return current data if platform or content is missing
+    return {
+      status: "success", 
+      data: nodeData
+    };
+  }
 
-	private determineNextNode(nodeId: string): string | null {
-		const node = this.getNode(nodeId);
-		if (!node) return null;
+  /**
+   * Execute PreviewNode
+   */
+  private async executePreviewNode(
+    nodeId: string, 
+    nodeData: any, 
+    inputs: Record<string, any>
+  ): Promise<{ status: string; data: any }> {
+    // Get content from platform node
+    const contentInputs = inputs.content || [];
+    
+    if (contentInputs.length > 0) {
+      const platformNode = contentInputs[0];
+      const platform = platformNode.data.platform;
+      const platformContent = platformNode.data.platformContent;
+      
+      if (platform && platformContent) {
+        return {
+          status: "success",
+          data: {
+            ...nodeData,
+            platform,
+            content: platformContent,
+            previewGenerated: true
+          }
+        };
+      }
+    }
+    
+    // Return current data if no platform content
+    return {
+      status: "success",
+      data: nodeData
+    };
+  }
 
-		const nodeData = this.context.nodeData[nodeId] || {};
-		const nextNodes = this.findNextNodes(nodeId);
+  /**
+   * Execute ConditionalNode
+   */
+  private async executeConditionalNode(
+    nodeId: string, 
+    nodeData: any, 
+    inputs: Record<string, any>
+  ): Promise<{ status: string; data: any }> {
+    // Get the condition and evaluate it
+    const condition = nodeData.condition;
+    let conditionResult = false;
+    
+    if (!condition) {
+      return {
+        status: "success",
+        data: {
+          ...nodeData,
+          result: false
+        }
+      };
+    }
+    
+    switch (condition) {
+      case "hasDraft":
+        // Check if draft exists in inputs
+        conditionResult = this.checkDraftExists(inputs);
+        break;
+        
+      case "hasImage":
+        // Check if image exists in inputs
+        conditionResult = this.checkImageExists(inputs);
+        break;
+        
+      case "isPlatformSelected":
+        // Check if platform is selected
+        conditionResult = this.checkPlatformSelected(inputs);
+        break;
+        
+      case "contentLength":
+        // Check if content length meets the threshold
+        conditionResult = this.checkContentLength(
+          inputs, 
+          nodeData.conditionValue || 250
+        );
+        break;
+        
+      case "custom":
+        // Evaluate custom condition
+        conditionResult = this.evaluateCustomCondition(
+          inputs,
+          nodeData.customCondition
+        );
+        break;
+        
+      default:
+        conditionResult = false;
+    }
+    
+    return {
+      status: "success",
+      data: {
+        ...nodeData,
+        result: conditionResult,
+        conditionEvaluated: true
+      }
+    };
+  }
 
-		if (nextNodes.length === 0) {
-			return null; // End of workflow
-		}
+  /**
+   * Check if draft exists in inputs
+   */
+  private checkDraftExists(inputs: Record<string, any>): boolean {
+    const inputArray = inputs.input || [];
+    
+    return inputArray.some((input: any) => {
+      // Check if this is a draft node with content
+      if (input.nodeType === "draftNode") {
+        return !!input.data.draft;
+      }
+      
+      // Check direct draft inputs
+      return !!input.data.draft;
+    });
+  }
 
-		// Handle conditional nodes
-		if (node.type === "conditionalNode") {
-			const condition = nodeData.condition;
-			const edges = this.context.edges.filter((edge) => edge.source === nodeId);
+  /**
+   * Check if image exists in inputs
+   */
+  private checkImageExists(inputs: Record<string, any>): boolean {
+    const inputArray = inputs.input || [];
+    
+    return inputArray.some((input: any) => {
+      // Check if this is a media node with selected image
+      if (input.nodeType === "mediaNode") {
+        return !!input.data.selectedImage;
+      }
+      
+      // Check direct image inputs
+      return !!input.data.selectedImage || !!input.data.media;
+    });
+  }
 
-			// Find true/false edges
-			const trueEdge = edges.find((edge) => edge.sourceHandle === "true");
-			const falseEdge = edges.find((edge) => edge.sourceHandle === "false");
+  /**
+   * Check if platform is selected
+   */
+  private checkPlatformSelected(inputs: Record<string, any>): boolean {
+    const inputArray = inputs.input || [];
+    
+    return inputArray.some((input: any) => {
+      // Check if this is a platform node with selected platform
+      if (input.nodeType === "platformNode") {
+        return !!input.data.platform;
+      }
+      
+      // Check direct platform inputs
+      return !!input.data.platform;
+    });
+  }
 
-			if (!trueEdge || !falseEdge) {
-				return nextNodes[0]; // Default to first next node if edges not properly set up
-			}
+  /**
+   * Check content length against threshold
+   */
+  private checkContentLength(
+    inputs: Record<string, any>, 
+    threshold: number
+  ): boolean {
+    const inputArray = inputs.input || [];
+    
+    return inputArray.some((input: any) => {
+      // Check if this is a node with draft content
+      let content = "";
+      
+      if (input.data.draft) {
+        content = input.data.draft;
+      } else if (input.data.content) {
+        content = input.data.content;
+      }
+      
+      if (!content) return false;
+      
+      // Count words by splitting on whitespace
+      const words = content.split(/\s+/).filter(Boolean);
+      return words.length >= threshold;
+    });
+  }
 
-			// Evaluate condition
-			let conditionResult = false;
-			switch (condition) {
-				case "hasDraft":
-					// Check if previous draft node has a draft
-					conditionResult = this.checkDraftExists();
-					break;
-				case "hasImage":
-					// Check if previous media node has selected image
-					conditionResult = this.checkImageExists();
-					break;
-				case "isPlatformSelected":
-					// Check if previous platform node has selection
-					conditionResult = this.checkPlatformSelected();
-					break;
-				case "contentLength":
-					// Check if content length meets the threshold
-					conditionResult = this.checkContentLength(nodeData.conditionValue || 250);
-					break;
-				case "custom":
-					// Evaluate custom condition
-					conditionResult = this.evaluateCustomCondition(nodeData.customCondition);
-					break;
-				default:
-					conditionResult = false;
-			}
+  /**
+   * Evaluate custom condition
+   */
+  private evaluateCustomCondition(
+    inputs: Record<string, any>,
+    expression?: string
+  ): boolean {
+    if (!expression) return false;
+    
+    try {
+      const inputArray = inputs.input || [];
+      
+      // Extract useful data into variables for the condition
+      let draft = "";
+      let image = null;
+      let platform = "";
+      let hashtags: string[] = [];
+      
+      inputArray.forEach((input: any) => {
+        if (input.data.draft) draft = input.data.draft;
+        if (input.data.selectedImage) image = input.data.selectedImage;
+        if (input.data.platform) platform = input.data.platform;
+        if (input.data.hashtags) hashtags = input.data.hashtags;
+      });
+      
+      // Create a context for evaluation
+      const context = { draft, image, platform, hashtags };
+      
+      // Simple expression evaluator (basic implementation)
+      // In a production environment, you would use a safer evaluation method
+      const result = new Function(
+        "draft", "image", "platform", "hashtags",
+        `return ${expression}`
+      )(context.draft, context.image, context.platform, context.hashtags);
+      
+      return Boolean(result);
+    } catch (error) {
+      console.error("Error evaluating custom condition:", error);
+      return false;
+    }
+  }
 
-			// Store the result in nodeData for visualization purposes
-			this.context.nodeData[nodeId] = {
-				...nodeData,
-				result: conditionResult,
-			};
+  /**
+   * Determine next node to execute
+   */
+  private determineNextNode(nodeId: string): string | null {
+    const node = this.getNode(nodeId);
+    if (!node) return null;
 
-			return conditionResult ? trueEdge.target : falseEdge.target;
-		}
+    const nodeData = this.context.nodeData[nodeId] || {};
+    const nextNodes = this.findNextNodes(nodeId);
 
-		// For non-conditional nodes, just return the first next node
-		return nextNodes[0];
-	}
+    if (nextNodes.length === 0) {
+      return null; // End of workflow
+    }
 
-	// Add new condition evaluation methods
-	private checkContentLength(threshold: number): boolean {
-		// Find draft nodes
-		const draftNodes = this.context.nodes.filter((node) => node.type === "draftNode");
+    // Handle conditional nodes
+    if (node.type === "conditionalNode") {
+      const edges = this.context.edges.filter(edge => 
+        edge.source === nodeId
+      );
 
-		// Check if any draft node has content exceeding the threshold
-		return draftNodes.some((node) => {
-			const nodeData = this.context.nodeData[node.id] || {};
-			if (!nodeData.draft) return false;
+      // Find true/false edges
+      const trueEdge = edges.find(edge => edge.sourceHandle === "true");
+      const falseEdge = edges.find(edge => edge.sourceHandle === "false");
 
-			// Count words (split by whitespace)
-			const wordCount = nodeData.draft.split(/\s+/).filter(Boolean).length;
-			return wordCount >= threshold;
-		});
-	}
+      // If edges are not properly connected, return the first next node
+      if (!trueEdge || !falseEdge) {
+        return nextNodes[0];
+      }
 
-	private evaluateCustomCondition(expression: string | undefined): boolean {
-		if (!expression) return false;
+      // Return the appropriate path based on condition result
+      return nodeData.result ? trueEdge.target : falseEdge.target;
+    }
 
-		try {
-			// Prepare context variables for the evaluation
-			const draft = this.getDraftContent();
-			const image = this.getSelectedImage();
-			const platform = this.getSelectedPlatform();
+    // For non-conditional nodes, return the first next node
+    return nextNodes[0];
+  }
 
-			// Create a safe evaluation context
-			const context = { draft, image, platform };
+  /**
+   * Execute the entire workflow
+   */
+  public async executeWorkflow(): Promise<Record<string, any>> {
+    const startNodeId = this.context.currentNodeId;
+    if (!startNodeId) {
+      throw new Error("No start node found in workflow");
+    }
 
-			// Simple expression evaluator (this is a basic implementation)
-			// In a production environment, you would want to use a safer method
-			// or a dedicated expression evaluation library
-			const result = new Function("draft", "image", "platform", `return ${expression}`).call(null, context.draft, context.image, context.platform);
+    let currentNodeId = startNodeId;
+    let executionDepth = 0;
 
-			return Boolean(result);
-		} catch (error) {
-			console.error("Error evaluating custom condition:", error);
-			return false;
-		}
-	}
+    // Loop through nodes following the execution path
+    while (
+      currentNodeId !== null && 
+      executionDepth < this.maxExecutionDepth &&
+      !this.context.visitedNodes.has(currentNodeId)
+    ) {
+      // Mark node as visited to prevent cycles
+      this.context.visitedNodes.add(currentNodeId);
+      this.context.execPath.push(currentNodeId);
+      
+      // Execute the node
+      try {
+        await this.executeNodeActions(currentNodeId);
+      } catch (error) {
+        // Log error but continue workflow if possible
+        console.error(`Error executing node ${currentNodeId}:`, error);
+      }
 
-	// Helper methods to get data for conditions
-	private getDraftContent(): string | null {
-		const draftNodes = this.context.nodes.filter((node) => node.type === "draftNode");
-		for (const node of draftNodes) {
-			const nodeData = this.context.nodeData[node.id] || {};
-			if (nodeData.draft) return nodeData.draft;
-		}
-		return null;
-	}
+      // Find the next node to execute
+      const nextNodeId = this.determineNextNode(currentNodeId);
+      currentNodeId = nextNodeId;
+      executionDepth++;
+    }
 
-	private getSelectedImage(): any | null {
-		const mediaNodes = this.context.nodes.filter((node) => node.type === "mediaNode");
-		for (const node of mediaNodes) {
-			const nodeData = this.context.nodeData[node.id] || {};
-			if (nodeData.selectedImage) return nodeData.selectedImage;
-		}
-		return null;
-	}
+    // If we hit the max depth, report a potential cycle
+    if (executionDepth >= this.maxExecutionDepth) {
+      console.warn("Maximum execution depth reached. Possible cycle in workflow.");
+      this.context.errors.push({
+        nodeId: currentNodeId || "unknown",
+        message: "Maximum execution depth reached. Possible cycle in workflow."
+      });
+    }
 
-	private getSelectedPlatform(): string | null {
-		const platformNodes = this.context.nodes.filter((node) => node.type === "platformNode");
-		for (const node of platformNodes) {
-			const nodeData = this.context.nodeData[node.id] || {};
-			if (nodeData.platform) return nodeData.platform;
-		}
-		return null;
-	}
+    // Update connections after execution
+    this.context.nodes = updateNodesWithConnections(
+      this.context.nodes, 
+      this.context.edges
+    );
 
-	private checkDraftExists(): boolean {
-		// Find draft nodes
-		const draftNodes = this.context.nodes.filter((node) => node.type === "draftNode");
+    console.log("Workflow execution complete. Path:", this.context.execPath);
+    
+    return this.context.nodeData;
+  }
 
-		// Check if any draft node has a draft
-		return draftNodes.some((node) => {
-			const nodeData = this.context.nodeData[node.id] || {};
-			return !!nodeData.draft;
-		});
-	}
-
-	private checkImageExists(): boolean {
-		// Find media nodes
-		const mediaNodes = this.context.nodes.filter((node) => node.type === "mediaNode");
-
-		// Check if any media node has a selected image
-		return mediaNodes.some((node) => {
-			const nodeData = this.context.nodeData[node.id] || {};
-			return !!nodeData.selectedImage;
-		});
-	}
-
-	private checkPlatformSelected(): boolean {
-		// Find platform nodes
-		const platformNodes = this.context.nodes.filter((node) => node.type === "platformNode");
-
-		// Check if any platform node has a selected platform
-		return platformNodes.some((node) => {
-			const nodeData = this.context.nodeData[node.id] || {};
-			return !!nodeData.platform;
-		});
-	}
-
-	public async executeWorkflow(): Promise<Record<string, any>> {
-		const startNodeId = this.context.currentNodeId;
-		if (!startNodeId) {
-			throw new Error("No start node found in workflow");
-		}
-
-		let currentNodeId = startNodeId; // This ensures currentNodeId is always string, not null
-		const visitedNodes = new Set<string>();
-
-		// Execute the workflow until we reach the end or a cycle
-		while (!visitedNodes.has(currentNodeId)) {
-			visitedNodes.add(currentNodeId);
-
-			// Execute the current node
-			await this.executeNodeActions(currentNodeId);
-
-			// Find the next node
-			const nextNodeId = this.determineNextNode(currentNodeId);
-
-			// Exit loop if no next node
-			if (nextNodeId === null) {
-				break;
-			}
-
-			// Update current node
-			currentNodeId = nextNodeId;
-		}
-
-		// After execution is complete, ensure connections are updated
-		this.context.nodes = updateNodeConnections(this.context.nodes, this.context.edges);
-
-		console.log("Workflow execution complete");
-		return this.context.nodeData;
-	}
-
-	public getNodeData(): Record<string, any> {
-		return this.context.nodeData;
-	}
+  /**
+   * Get detailed execution results
+   */
+  public getExecutionResults(): {
+    nodeData: Record<string, any>;
+    executionState: Record<string, NodeExecutionState>;
+    execPath: string[];
+    errors: { nodeId: string; message: string; details?: any }[];
+  } {
+    return {
+      nodeData: this.context.nodeData,
+      executionState: this.context.executionState,
+      execPath: this.context.execPath,
+      errors: this.context.errors
+    };
+  }
 }
+
+// Utility functions that would normally be in separate files
+
+/**
+ * Generate hashtags from content
+ */
+function generateHashtagsFromContent(content: string, count: number = 5): string[] {
+  // This is a simple implementation that extracts words
+  // A real implementation would use NLP and trend analysis
+  
+  // Extract all words, remove special characters, and convert to lowercase
+  const words = content
+    .toLowerCase()
+    .replace(/[^\w\s]/g, "")
+    .split(/\s+/)
+    .filter(word => word.length > 3); // Only words longer than 3 chars
+  
+  // Get unique words
+  const uniqueWords = Array.from(new Set(words));
+  
+  // Sort by frequency (a simple relevance measure)
+  const wordCounts = uniqueWords.map(word => ({
+    word,
+    count: words.filter(w => w === word).length
+  }));
+  
+  const sortedWords = wordCounts
+    .sort((a, b) => b.count - a.count)
+    .map(item => item.word);
+  
+  // Return the top N words as hashtags
+  return sortedWords
+    .slice(0, count)
+    .map(word => word.replace(/[^a-z0-9]/g, ""))
+    .filter(word => word.length > 0);
+}
+
+/**
+ * Format content for a specific platform
+ */
+function formatContentForPlatform(
+  content: string,
+  platform: string,
+  hashtags: string[] = []
+): string {
+  let formattedContent = content;
+  
+  // Platform-specific formatting
+  switch (platform) {
+    case "twitter":
+      // Truncate to Twitter's character limit
+      if (formattedContent.length > 280) {
+        formattedContent = formattedContent.substring(0, 277) + "...";
+      }
+      
+      // Add hashtags if there's room
+      const hashtagsText = hashtags.map(tag => `#${tag}`).join(" ");
+      
+      if (formattedContent.length + hashtagsText.length + 1 <= 280) {
+        formattedContent = `${formattedContent}\n${hashtagsText}`;
+      }
+      break;
+      
+    case "instagram":
+      // Instagram favors hashtags at the end and more of them
+      const igHashtags = hashtags.map(tag => `#${tag}`).join(" ");
+      formattedContent = `${formattedContent}\n\n${igHashtags}`;
+      break;
+      
+    case "facebook":
+      // Facebook posts can be longer, and fewer hashtags are recommended
+      const fbHashtags = hashtags
+        .slice(0, 3)
+        .map(tag => `#${tag}`)
+        .join(" ");
+        
+      if (hashtags.length > 0) {
+        formattedContent = `${formattedContent}\n\n${fbHashtags}`;
+      }
+      break;
+      
+    case "linkedin":
+      // LinkedIn is more professional, so only use relevant hashtags
+      const liHashtags = hashtags
+        .slice(0, 3)
+        .map(tag => `#${tag}`)
+        .join(" ");
+        
+      if (hashtags.length > 0) {
+        formattedContent = `${formattedContent}\n\n${liHashtags}`;
+      }
+      break;
+      
+    default:
+      // Default formatting just appends hashtags

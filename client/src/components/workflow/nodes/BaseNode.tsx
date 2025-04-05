@@ -12,6 +12,7 @@ export interface BaseNodeProps extends NodeProps {
 	isEditable?: boolean;
 	onEditStart?: (nodeId: string) => void;
 	onDelete?: (nodeId: string) => void;
+	children?: React.ReactNode;
 }
 
 /**

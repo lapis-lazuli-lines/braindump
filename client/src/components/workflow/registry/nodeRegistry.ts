@@ -1,38 +1,55 @@
-// client/src/components/workflow/registry/nodeRegistry.ts
+// src/components/workflow/registry/nodeTypeRegistry.ts
 import { ReactNode } from "react";
 
-// Define the possible data types that can flow between nodes
+/**
+ * Enhanced data type system for node connections
+ * This defines what types of data can flow between nodes
+ */
 export enum DataType {
-	IDEA = "idea",
-	DRAFT = "draft",
-	MEDIA = "media",
-	PLATFORM = "platform",
-	AUDIENCE = "audience",
-	HASHTAGS = "hashtags",
-	COMBINED_CONTENT = "combinedContent",
-	BOOLEAN = "boolean",
-	ANY = "any",
+	TEXT = "text", // Plain text content
+	STRUCTURED_TEXT = "structured_text", // Formatted or structured text (markdown, etc)
+	IDEA = "idea", // Content idea
+	DRAFT = "draft", // Content draft
+	MEDIA = "media", // Images or videos
+	PLATFORM_SETTINGS = "platform_settings", // Platform-specific settings
+	AUDIENCE = "audience", // Audience targeting parameters
+	HASHTAG_SET = "hashtag_set", // Collection of hashtags
+	COMBINED_CONTENT = "combined_content", // Content with all elements combined
+	PREVIEW = "preview", // Content preview
+	SCHEDULE = "schedule", // Scheduling information
+	ANALYTICS = "analytics", // Analytics data
+	BOOLEAN = "boolean", // True/false output (for conditionals)
+	ANY = "any", // Special type that can connect to anything
 }
 
-// Interface for input port definition
+/**
+ * Interface for node input definition with enhanced validation
+ */
 export interface NodeInput {
-	allowMultiple: any;
-	id: string;
-	label: string;
-	type: DataType;
-	required: boolean;
-	validSourceTypes: string[]; // List of node types that can connect to this input
+	id: string; // Unique identifier for this input
+	label: string; // User-friendly name
+	type: DataType; // The data type this input accepts
+	required: boolean; // Whether this input must be connected
+	allowMultiple: boolean; // Whether this input can accept multiple connections
+	validSourceTypes: string[]; // Which node types can connect to this input
+	description?: string; // Optional description of what this input does
+	defaultValue?: any; // Optional default value when not connected
 }
 
-// Interface for output port definition
+/**
+ * Interface for node output definition with enhanced validation
+ */
 export interface NodeOutput {
-	id: string;
-	label: string;
-	type: DataType;
-	validTargetTypes: string[]; // List of node types that this output can connect to
+	id: string; // Unique identifier for this output
+	label: string; // User-friendly name
+	type: DataType; // The data type this output provides
+	validTargetTypes: string[]; // Which node types this output can connect to
+	description?: string; // Optional description of what this output provides
 }
 
-// Node category for grouping in the palette
+/**
+ * Node categories for organization in the palette
+ */
 export enum NodeCategory {
 	PLANNING = "planning",
 	CONTENT = "content",
@@ -44,22 +61,29 @@ export enum NodeCategory {
 	CONTROL = "control",
 }
 
-// Complete node type definition
+/**
+ * Complete node type definition with enhanced features
+ */
 export interface NodeTypeDefinition {
-	type: string;
-	title: string;
-	description: string;
-	category: NodeCategory;
-	inputs: NodeInput[];
-	outputs: NodeOutput[];
-	icon: ReactNode | string;
-	color: string;
-	initialData: Record<string, any>;
-	maxInstances?: number; // Optional limit on how many instances can exist
+	type: string; // Unique type identifier
+	title: string; // User-friendly name
+	description: string; // What this node does
+	category: NodeCategory; // Category for organization
+	inputs: NodeInput[]; // Available input ports
+	outputs: NodeOutput[]; // Available output ports
+	icon: ReactNode | string; // Visual icon for the node
+	color: string; // Primary color for styling
+	initialData: Record<string, any>; // Default data for new nodes
+	maxInstances?: number; // Maximum number of this node type allowed
+	requiresAPIKey?: boolean; // Whether this node requires API credentials
+	premium?: boolean; // Whether this is a premium/paid feature
 }
 
-// Define the registry of all node types
+/**
+ * Enhanced node registry with comprehensive node definitions
+ */
 export const nodeTypeRegistry: Record<string, NodeTypeDefinition> = {
+	// CONTENT PLANNING NODES
 	ideaNode: {
 		type: "ideaNode",
 		title: "Content Ideas",
@@ -95,19 +119,26 @@ export const nodeTypeRegistry: Record<string, NodeTypeDefinition> = {
 				id: "audience",
 				label: "Audience Parameters",
 				type: DataType.AUDIENCE,
-				validTargetTypes: ["draftNode", "platformNode"],
+				validTargetTypes: ["draftNode", "platformNode", "previewNode"],
 			},
 		],
 		icon: "users",
 		color: "#059669", // Green
 		initialData: {
-			ageRange: [18, 65],
+			ageRange: { min: 18, max: 65 },
+			gender: [],
 			interests: [],
-			demographics: [],
-			location: [],
+			locations: [],
+			languages: [],
+			relationshipStatuses: [],
+			educationLevels: [],
+			incomeRanges: [],
+			parentingStatus: [],
+			deviceTypes: [],
 		},
 	},
 
+	// CONTENT CREATION NODES
 	draftNode: {
 		type: "draftNode",
 		title: "Draft Generator",
@@ -119,6 +150,7 @@ export const nodeTypeRegistry: Record<string, NodeTypeDefinition> = {
 				label: "Content Idea",
 				type: DataType.IDEA,
 				required: false,
+				allowMultiple: false,
 				validSourceTypes: ["ideaNode"],
 			},
 			{
@@ -126,6 +158,7 @@ export const nodeTypeRegistry: Record<string, NodeTypeDefinition> = {
 				label: "Audience Parameters",
 				type: DataType.AUDIENCE,
 				required: false,
+				allowMultiple: false,
 				validSourceTypes: ["audienceNode"],
 			},
 		],
@@ -157,6 +190,7 @@ export const nodeTypeRegistry: Record<string, NodeTypeDefinition> = {
 				label: "Content Draft",
 				type: DataType.DRAFT,
 				required: true,
+				allowMultiple: false,
 				validSourceTypes: ["draftNode"],
 			},
 			{
@@ -164,6 +198,7 @@ export const nodeTypeRegistry: Record<string, NodeTypeDefinition> = {
 				label: "Content Idea",
 				type: DataType.IDEA,
 				required: false,
+				allowMultiple: false,
 				validSourceTypes: ["ideaNode"],
 			},
 		],
@@ -171,7 +206,7 @@ export const nodeTypeRegistry: Record<string, NodeTypeDefinition> = {
 			{
 				id: "hashtags",
 				label: "Hashtags",
-				type: DataType.HASHTAGS,
+				type: DataType.HASHTAG_SET,
 				validTargetTypes: ["platformNode", "previewNode"],
 			},
 		],
@@ -184,6 +219,7 @@ export const nodeTypeRegistry: Record<string, NodeTypeDefinition> = {
 		},
 	},
 
+	// MEDIA NODES
 	mediaNode: {
 		type: "mediaNode",
 		title: "Media Selection",
@@ -195,6 +231,7 @@ export const nodeTypeRegistry: Record<string, NodeTypeDefinition> = {
 				label: "Content Reference",
 				type: DataType.DRAFT,
 				required: false,
+				allowMultiple: false,
 				validSourceTypes: ["draftNode"],
 			},
 		],
@@ -213,9 +250,13 @@ export const nodeTypeRegistry: Record<string, NodeTypeDefinition> = {
 			selectedImage: null,
 			images: [],
 			hasSearched: false,
+			imageSize: "medium",
+			imagePosition: "center",
+			showCaption: false,
 		},
 	},
 
+	// PLATFORM NODES
 	platformNode: {
 		type: "platformNode",
 		title: "Platform Selection",
@@ -227,6 +268,7 @@ export const nodeTypeRegistry: Record<string, NodeTypeDefinition> = {
 				label: "Content Draft",
 				type: DataType.DRAFT,
 				required: true,
+				allowMultiple: false,
 				validSourceTypes: ["draftNode"],
 			},
 			{
@@ -234,13 +276,15 @@ export const nodeTypeRegistry: Record<string, NodeTypeDefinition> = {
 				label: "Media",
 				type: DataType.MEDIA,
 				required: false,
+				allowMultiple: false,
 				validSourceTypes: ["mediaNode"],
 			},
 			{
 				id: "hashtags",
 				label: "Hashtags",
-				type: DataType.HASHTAGS,
+				type: DataType.HASHTAG_SET,
 				required: false,
+				allowMultiple: false,
 				validSourceTypes: ["hashtagNode"],
 			},
 			{
@@ -248,6 +292,7 @@ export const nodeTypeRegistry: Record<string, NodeTypeDefinition> = {
 				label: "Audience",
 				type: DataType.AUDIENCE,
 				required: false,
+				allowMultiple: false,
 				validSourceTypes: ["audienceNode"],
 			},
 		],
@@ -268,6 +313,7 @@ export const nodeTypeRegistry: Record<string, NodeTypeDefinition> = {
 		},
 	},
 
+	// PREVIEW NODES
 	previewNode: {
 		type: "previewNode",
 		title: "Content Preview",
@@ -279,7 +325,16 @@ export const nodeTypeRegistry: Record<string, NodeTypeDefinition> = {
 				label: "Platform Content",
 				type: DataType.COMBINED_CONTENT,
 				required: true,
+				allowMultiple: false,
 				validSourceTypes: ["platformNode"],
+			},
+			{
+				id: "audience",
+				label: "Audience Parameters",
+				type: DataType.AUDIENCE,
+				required: false,
+				allowMultiple: false,
+				validSourceTypes: ["audienceNode"],
 			},
 		],
 		outputs: [
@@ -300,6 +355,7 @@ export const nodeTypeRegistry: Record<string, NodeTypeDefinition> = {
 		},
 	},
 
+	// SCHEDULING & PUBLISHING NODES
 	scheduleNode: {
 		type: "scheduleNode",
 		title: "Schedule Post",
@@ -311,6 +367,7 @@ export const nodeTypeRegistry: Record<string, NodeTypeDefinition> = {
 				label: "Platform Content",
 				type: DataType.COMBINED_CONTENT,
 				required: true,
+				allowMultiple: false,
 				validSourceTypes: ["platformNode", "previewNode"],
 			},
 		],
@@ -342,6 +399,7 @@ export const nodeTypeRegistry: Record<string, NodeTypeDefinition> = {
 				label: "Platform Content",
 				type: DataType.COMBINED_CONTENT,
 				required: true,
+				allowMultiple: false,
 				validSourceTypes: ["platformNode", "previewNode", "scheduleNode"],
 			},
 		],
@@ -363,6 +421,7 @@ export const nodeTypeRegistry: Record<string, NodeTypeDefinition> = {
 		maxInstances: 1, // Only one publish node allowed per workflow
 	},
 
+	// ANALYTICS NODES
 	analyticsNode: {
 		type: "analyticsNode",
 		title: "Analytics Tracking",
@@ -374,6 +433,7 @@ export const nodeTypeRegistry: Record<string, NodeTypeDefinition> = {
 				label: "Published Content",
 				type: DataType.COMBINED_CONTENT,
 				required: true,
+				allowMultiple: false,
 				validSourceTypes: ["publishNode"],
 			},
 		],
@@ -388,6 +448,7 @@ export const nodeTypeRegistry: Record<string, NodeTypeDefinition> = {
 		maxInstances: 1, // Only one analytics node allowed per workflow
 	},
 
+	// CONTROL FLOW NODES
 	conditionalNode: {
 		type: "conditionalNode",
 		title: "Conditional Branch",
@@ -399,6 +460,7 @@ export const nodeTypeRegistry: Record<string, NodeTypeDefinition> = {
 				label: "Input",
 				type: DataType.ANY,
 				required: true,
+				allowMultiple: false,
 				validSourceTypes: ["draftNode", "mediaNode", "platformNode"],
 			},
 		],
@@ -407,13 +469,13 @@ export const nodeTypeRegistry: Record<string, NodeTypeDefinition> = {
 				id: "true",
 				label: "If True",
 				type: DataType.ANY,
-				validTargetTypes: ["ideaNode", "draftNode", "mediaNode", "platformNode", "previewNode", "scheduleNode", "publishNode"],
+				validTargetTypes: ["draftNode", "mediaNode", "platformNode", "previewNode", "scheduleNode", "publishNode"],
 			},
 			{
 				id: "false",
 				label: "If False",
 				type: DataType.ANY,
-				validTargetTypes: ["ideaNode", "draftNode", "mediaNode", "platformNode", "previewNode", "scheduleNode", "publishNode"],
+				validTargetTypes: ["draftNode", "mediaNode", "platformNode", "previewNode", "scheduleNode", "publishNode"],
 			},
 		],
 		icon: "git-branch",
@@ -427,60 +489,94 @@ export const nodeTypeRegistry: Record<string, NodeTypeDefinition> = {
 	},
 };
 
-// Helper function to validate connection compatibility
-export const validateConnection = (sourceNodeType: string, sourceHandleId: string, targetNodeType: string, targetHandleId: string): boolean => {
+/**
+ * Enhanced connection validator with better error reporting
+ */
+export function validateConnection(sourceNodeType: string, sourceHandleId: string, targetNodeType: string, targetHandleId: string): { valid: boolean; reason?: string } {
 	// Get the node type definitions
 	const sourceNodeDef = nodeTypeRegistry[sourceNodeType];
 	const targetNodeDef = nodeTypeRegistry[targetNodeType];
 
 	if (!sourceNodeDef || !targetNodeDef) {
-		return false;
+		return {
+			valid: false,
+			reason: `Unknown node type: ${!sourceNodeDef ? sourceNodeType : targetNodeType}`,
+		};
 	}
 
 	// Find the output from the source node
 	const output = sourceNodeDef.outputs.find((o) => o.id === sourceHandleId);
 	if (!output) {
-		return false;
+		return {
+			valid: false,
+			reason: `Output '${sourceHandleId}' not found on ${sourceNodeDef.title} node`,
+		};
 	}
 
 	// Find the input in the target node
 	const input = targetNodeDef.inputs.find((i) => i.id === targetHandleId);
 	if (!input) {
-		return false;
+		return {
+			valid: false,
+			reason: `Input '${targetHandleId}' not found on ${targetNodeDef.title} node`,
+		};
 	}
 
 	// Check if the target node accepts this source node type
 	if (!input.validSourceTypes.includes(sourceNodeType)) {
-		return false;
+		return {
+			valid: false,
+			reason: `${targetNodeDef.title} cannot receive input from ${sourceNodeDef.title}`,
+		};
 	}
 
 	// Check if the source node can connect to this target node type
 	if (!output.validTargetTypes.includes(targetNodeType)) {
-		return false;
+		return {
+			valid: false,
+			reason: `${sourceNodeDef.title} cannot connect to ${targetNodeDef.title}`,
+		};
 	}
 
-	// Allow connections to conditionalNode regardless of data type
+	// Special case for conditional nodes
 	if (targetNodeType === "conditionalNode" && targetHandleId === "input") {
-		return true;
+		return { valid: true };
 	}
 
-	// Allow connections from conditionalNode regardless of data type
 	if (sourceNodeType === "conditionalNode" && (sourceHandleId === "true" || sourceHandleId === "false")) {
-		return true;
+		return { valid: true };
 	}
 
 	// Check if the data types are compatible
 	// ANY type is compatible with any other type
 	if (input.type === DataType.ANY || output.type === DataType.ANY) {
-		return true;
+		return { valid: true };
 	}
 
-	return input.type === output.type;
-};
+	// Check for type compatibility
+	if (input.type !== output.type) {
+		return {
+			valid: false,
+			reason: `Data type mismatch: ${output.type} cannot connect to ${input.type}`,
+		};
+	}
 
-// Helper function to get all valid target handles for a source
-export const getValidTargets = (sourceNodeType: string, sourceHandleId: string): { nodeType: string; handleId: string }[] => {
-	const validTargets: { nodeType: string; handleId: string }[] = [];
+	return { valid: true };
+}
+
+/**
+ * Get a list of valid target handles for a given source
+ * Useful for showing connection suggestions to the user
+ */
+export function getValidTargets(
+	sourceNodeType: string,
+	sourceHandleId: string
+): {
+	nodeType: string;
+	handleId: string;
+	reason: string;
+}[] {
+	const validTargets: { nodeType: string; handleId: string; reason: string }[] = [];
 	const sourceNodeDef = nodeTypeRegistry[sourceNodeType];
 
 	if (!sourceNodeDef) {
@@ -507,6 +603,7 @@ export const getValidTargets = (sourceNodeType: string, sourceHandleId: string):
 					validTargets.push({
 						nodeType: targetType,
 						handleId: input.id,
+						reason: `${sourceNodeDef.title}'s ${output.label} can connect to ${targetDef.title}'s ${input.label}`,
 					});
 				}
 			}
@@ -514,6 +611,6 @@ export const getValidTargets = (sourceNodeType: string, sourceHandleId: string):
 	});
 
 	return validTargets;
-};
+}
 
 export default nodeTypeRegistry;

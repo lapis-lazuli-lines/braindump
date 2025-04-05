@@ -1,202 +1,384 @@
 // src/components/workflow/nodes/PreviewNode.tsx
-import React, { useState, useEffect } from "react";
-import { NodeProps, Position, Handle } from "reactflow";
+import React, { useState } from "react";
+import { Handle, Position, NodeProps } from "reactflow";
 import { useWorkflowStore } from "../workflowStore";
-import platformRegistry from "@/services/platforms/PlatformRegistry";
-import { PlatformContent } from "@/services/platforms/PlatformAdapter";
 
-interface PreviewNodeData {
-	platform?: string;
-	content?: PlatformContent;
-	viewAs: "mobile" | "desktop";
-	darkMode: boolean;
-	approvalStatus: "pending" | "approved" | "rejected" | null;
-	feedback: string;
-}
+// Platform preview renderers
+const PlatformPreviews: Record<string, React.FC<{ content: any }>> = {
+	// Twitter Preview
+	twitter: ({ content }) => (
+		<div className="bg-white rounded-md border border-gray-200 p-3">
+			<div className="flex items-start mb-2">
+				<div className="h-10 w-10 bg-gray-300 rounded-full mr-2 flex-shrink-0"></div>
+				<div>
+					<div className="font-bold text-sm">Username</div>
+					<div className="text-xs text-gray-500">@username</div>
+				</div>
+			</div>
+			<div className="text-sm mb-2 whitespace-pre-wrap">
+				{content.draft ? (content.draft.length > 240 ? content.draft.substring(0, 240) + "..." : content.draft) : "No content"}
+			</div>
+			{content.media && (
+				<div className="rounded-md overflow-hidden mb-2 border border-gray-200">
+					<img src={content.media.urls?.small || "https://via.placeholder.com/300"} alt={content.media.alt_description || "Media preview"} className="max-w-full" />
+				</div>
+			)}
+			{content.hashtags && content.hashtags.length > 0 && (
+				<div className="text-sm text-blue-500">
+					{content.hashtags.slice(0, 3).map((tag: string, i: number) => (
+						<span key={i} className="mr-1">
+							#{tag}
+						</span>
+					))}
+					{content.hashtags.length > 3 && <span>...</span>}
+				</div>
+			)}
+		</div>
+	),
+
+	// Instagram Preview
+	instagram: ({ content }) => (
+		<div className="bg-white rounded-md border border-gray-200">
+			<div className="flex items-center p-2 border-b">
+				<div className="h-8 w-8 bg-gray-300 rounded-full mr-2"></div>
+				<div className="text-sm font-medium">username</div>
+			</div>
+			{content.media ? (
+				<div className="w-full aspect-square bg-gray-100 flex items-center justify-center">
+					<img
+						src={content.media.urls?.small || "https://via.placeholder.com/300"}
+						alt={content.media.alt_description || "Media preview"}
+						className="max-w-full max-h-full object-contain"
+					/>
+				</div>
+			) : (
+				<div className="w-full aspect-square bg-gray-100 flex items-center justify-center text-gray-400 text-sm">No image</div>
+			)}
+			<div className="p-2">
+				<div className="text-sm mb-1">
+					<span className="font-bold mr-1">username</span>
+					<span className="text-sm whitespace-pre-wrap">
+						{content.draft ? (content.draft.length > 100 ? content.draft.substring(0, 100) + "..." : content.draft) : "No caption"}
+					</span>
+				</div>
+				{content.hashtags && content.hashtags.length > 0 && (
+					<div className="text-xs text-blue-500">
+						{content.hashtags.slice(0, 5).map((tag: string, i: number) => (
+							<span key={i} className="mr-1">
+								#{tag}
+							</span>
+						))}
+						{content.hashtags.length > 5 && <span>...</span>}
+					</div>
+				)}
+			</div>
+		</div>
+	),
+
+	// Facebook Preview
+	facebook: ({ content }) => (
+		<div className="bg-white rounded-md border border-gray-200 p-3">
+			<div className="flex items-center mb-3">
+				<div className="h-10 w-10 bg-gray-300 rounded-full mr-2"></div>
+				<div>
+					<div className="font-bold text-sm">Page Name</div>
+					<div className="text-xs text-gray-500">
+						Just now · <span>🌎</span>
+					</div>
+				</div>
+			</div>
+			<div className="text-sm mb-3 whitespace-pre-wrap">{content.draft || "No content"}</div>
+			{content.media && (
+				<div className="rounded-md overflow-hidden mb-3 border border-gray-200">
+					<img src={content.media.urls?.small || "https://via.placeholder.com/300"} alt={content.media.alt_description || "Media preview"} className="max-w-full" />
+				</div>
+			)}
+			{content.hashtags && content.hashtags.length > 0 && (
+				<div className="text-sm text-blue-500">
+					{content.hashtags.slice(0, 3).map((tag: string, i: number) => (
+						<span key={i} className="mr-1">
+							#{tag}
+						</span>
+					))}
+				</div>
+			)}
+			<div className="mt-3 pt-3 border-t border-gray-200 flex text-gray-500 text-sm">
+				<div className="flex-1 flex items-center justify-center">
+					<svg className="w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+						<path
+							strokeLinecap="round"
+							strokeLinejoin="round"
+							strokeWidth={2}
+							d="M14 10h4.764a2 2 0 011.789 2.894l-3.5 7A2 2 0 0115.263 21h-4.017c-.163 0-.326-.02-.485-.06L7 20m7-10V5a2 2 0 00-2-2h-.095c-.5 0-.905.405-.905.905 0 .714-.211 1.412-.608 2.006L7 11v9m7-10h-2M7 20H5a2 2 0 01-2-2v-6a2 2 0 012-2h2.5"
+						/>
+					</svg>
+					Like
+				</div>
+				<div className="flex-1 flex items-center justify-center">
+					<svg className="w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+						<path
+							strokeLinecap="round"
+							strokeLinejoin="round"
+							strokeWidth={2}
+							d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"
+						/>
+					</svg>
+					Comment
+				</div>
+				<div className="flex-1 flex items-center justify-center">
+					<svg className="w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+						<path
+							strokeLinecap="round"
+							strokeLinejoin="round"
+							strokeWidth={2}
+							d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"
+						/>
+					</svg>
+					Share
+				</div>
+			</div>
+		</div>
+	),
+
+	// LinkedIn Preview
+	linkedin: ({ content }) => (
+		<div className="bg-white rounded-md border border-gray-200 p-3">
+			<div className="flex items-start mb-3">
+				<div className="h-12 w-12 bg-gray-300 rounded-full mr-2 flex-shrink-0"></div>
+				<div>
+					<div className="font-bold text-sm">Name</div>
+					<div className="text-xs text-gray-500">Title • Just now</div>
+				</div>
+			</div>
+			<div className="text-sm mb-3 whitespace-pre-wrap">{content.draft || "No content"}</div>
+			{content.media && (
+				<div className="rounded-md overflow-hidden mb-3 border border-gray-200">
+					<img src={content.media.urls?.small || "https://via.placeholder.com/300"} alt={content.media.alt_description || "Media preview"} className="max-w-full" />
+				</div>
+			)}
+			{content.hashtags && content.hashtags.length > 0 && (
+				<div className="text-sm text-blue-500 mb-3">
+					{content.hashtags.slice(0, 3).map((tag: string, i: number) => (
+						<span key={i} className="mr-1">
+							#{tag}
+						</span>
+					))}
+				</div>
+			)}
+			<div className="mt-2 pt-2 border-t border-gray-200 flex text-gray-500 text-sm">
+				<div className="flex-1 flex items-center justify-center">
+					<svg className="w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+						<path
+							strokeLinecap="round"
+							strokeLinejoin="round"
+							strokeWidth={2}
+							d="M14 10h4.764a2 2 0 011.789 2.894l-3.5 7A2 2 0 0115.263 21h-4.017c-.163 0-.326-.02-.485-.06L7 20m7-10V5a2 2 0 00-2-2h-.095c-.5 0-.905.405-.905.905 0 .714-.211 1.412-.608 2.006L7 11v9m7-10h-2M7 20H5a2 2 0 01-2-2v-6a2 2 0 012-2h2.5"
+						/>
+					</svg>
+					Like
+				</div>
+				<div className="flex-1 flex items-center justify-center">
+					<svg className="w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+						<path
+							strokeLinecap="round"
+							strokeLinejoin="round"
+							strokeWidth={2}
+							d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"
+						/>
+					</svg>
+					Comment
+				</div>
+				<div className="flex-1 flex items-center justify-center">
+					<svg className="w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+						<path
+							strokeLinecap="round"
+							strokeLinejoin="round"
+							strokeWidth={2}
+							d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"
+						/>
+					</svg>
+					Share
+				</div>
+			</div>
+		</div>
+	),
+
+	// TikTok Preview
+	tiktok: ({ content }) => (
+		<div className="bg-black rounded-md border border-gray-700 text-white">
+			<div className="flex items-start p-2">
+				<div className="h-10 w-10 bg-gray-700 rounded-full mr-2 flex-shrink-0"></div>
+				<div className="flex-1">
+					<div className="font-bold text-sm">username</div>
+					<div className="text-xs text-gray-400">Original sound</div>
+				</div>
+				<div className="text-xs border border-white px-2 py-0.5 rounded-sm">Follow</div>
+			</div>
+			<div className="flex">
+				<div className="w-full aspect-[9/16] bg-gray-900 flex items-center justify-center relative">
+					{content.media ? (
+						<img
+							src={content.media.urls?.small || "https://via.placeholder.com/300"}
+							alt={content.media.alt_description || "Media preview"}
+							className="h-full object-cover"
+						/>
+					) : (
+						<div className="text-gray-400 text-sm">Video preview</div>
+					)}
+					<div className="absolute bottom-0 left-0 right-0 p-2 bg-gradient-to-t from-black to-transparent text-white">
+						<div className="text-sm whitespace-pre-wrap">
+							{content.draft ? (content.draft.length > 100 ? content.draft.substring(0, 100) + "..." : content.draft) : "No caption"}
+						</div>
+						{content.hashtags && content.hashtags.length > 0 && (
+							<div className="text-xs text-white">
+								{content.hashtags.slice(0, 3).map((tag: string, i: number) => (
+									<span key={i} className="mr-1">
+										#{tag}
+									</span>
+								))}
+								{content.hashtags.length > 3 && <span>...</span>}
+							</div>
+						)}
+					</div>
+				</div>
+				<div className="w-12 flex flex-col items-center justify-end p-2 space-y-4">
+					<div className="flex flex-col items-center">
+						<div className="h-7 w-7 bg-gray-700 rounded-full mb-1"></div>
+						<div className="text-xs">15.2K</div>
+					</div>
+					<div className="flex flex-col items-center">
+						<svg className="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+							<path
+								strokeLinecap="round"
+								strokeLinejoin="round"
+								strokeWidth={2}
+								d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"
+							/>
+						</svg>
+						<div className="text-xs">324</div>
+					</div>
+					<div className="flex flex-col items-center">
+						<svg className="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+							<path
+								strokeLinecap="round"
+								strokeLinejoin="round"
+								strokeWidth={2}
+								d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"
+							/>
+						</svg>
+						<div className="text-xs">1.2K</div>
+					</div>
+				</div>
+			</div>
+		</div>
+	),
+
+	// Default Preview (for platforms without a specific renderer)
+	default: ({ content }) => (
+		<div className="bg-white rounded-md border border-gray-200 p-3">
+			<div className="text-sm font-bold mb-2">{content.platform || "Platform"} Preview</div>
+			<div className="text-sm mb-3 whitespace-pre-wrap">{content.draft || "No content"}</div>
+			{content.media && (
+				<div className="rounded-md overflow-hidden mb-3 border border-gray-200">
+					<img src={content.media.urls?.small || "https://via.placeholder.com/300"} alt={content.media.alt_description || "Media preview"} className="max-w-full" />
+				</div>
+			)}
+			{content.hashtags && content.hashtags.length > 0 && (
+				<div className="text-sm text-blue-500">
+					{content.hashtags.map((tag: string, i: number) => (
+						<span key={i} className="mr-1">
+							#{tag}
+						</span>
+					))}
+				</div>
+			)}
+		</div>
+	),
+};
 
 /**
- * Enhanced Preview Node
- * Shows platform-specific content previews with different device sizes and themes
+ * PreviewNode Component
+ * Displays a platform-specific preview of the content
  */
 const PreviewNode: React.FC<NodeProps> = ({ id, data, selected }) => {
-	const [previewData, setPreviewData] = useState<PreviewNodeData>({
-		viewAs: data.viewAs || "mobile",
-		darkMode: data.darkMode || false,
-		approvalStatus: data.approvalStatus || null,
-		feedback: data.feedback || "",
-		platform: data.platform,
-		content: data.content,
-	});
+	const { updateNodeData } = useWorkflowStore();
+	const [viewAs, setViewAs] = useState<"mobile" | "desktop">(data.viewAs || "mobile");
+	const [darkMode, setDarkMode] = useState<boolean>(data.darkMode || false);
 
-	const updateNodeData = useWorkflowStore((state) => state.updateNodeData);
-	const nodes = useWorkflowStore((state) => state.nodes);
-	const edges = useWorkflowStore((state) => state.edges);
-
-	// Extract platform information from incoming connections
-	useEffect(() => {
-		// Check for platform node connections
-		const platformConnections = edges.filter((edge) => edge.target === id && edge.targetHandle === "content");
-
-		if (platformConnections.length > 0) {
-			const platformNodeId = platformConnections[0].source;
-			const platformNode = nodes.find((node) => node.id === platformNodeId);
-
-			if (platformNode && platformNode.type === "platformNode") {
-				const platform = platformNode.data?.platform;
-
-				if (platform && platform !== previewData.platform) {
-					setPreviewData((prev) => ({ ...prev, platform }));
-					updateNodeData(id, { platform });
-				}
-			}
+	// Get the correct platform preview renderer
+	const getPlatformPreviewRenderer = () => {
+		const platform = data.platform?.toLowerCase();
+		if (!platform || !data.content) {
+			return PlatformPreviews.default;
 		}
-	}, [id, nodes, edges, previewData.platform, updateNodeData]);
 
-	// Generate content for preview based on connected nodes
-	useEffect(() => {
-		if (!previewData.platform) return;
+		return PlatformPreviews[platform] || PlatformPreviews.default;
+	};
 
-		// Find the platform adapter
-		const platformAdapter = platformRegistry.getAdapter(previewData.platform);
-		if (!platformAdapter) return;
-
-		// Find content from platform node
-		const incomingConnections = edges.filter((edge) => edge.target === id && edge.targetHandle === "content");
-
-		if (incomingConnections.length === 0) return;
-
-		const platformNodeId = incomingConnections[0].source;
-		const platformNode = nodes.find((node) => node.id === platformNodeId);
-
-		if (!platformNode || platformNode.type !== "platformNode") return;
-
-		// Find source nodes connected to the platform node
-		const platformInputs = edges.filter((edge) => edge.target === platformNodeId);
-
-		// Extract draft content
-		const draftNodeId = platformInputs.find((e) => e.targetHandle === "draft")?.source;
-		const draftNode = nodes.find((n) => n.id === draftNodeId);
-		const draftContent = draftNode?.data?.draft || "";
-
-		// Extract media
-		const mediaNodeId = platformInputs.find((e) => e.targetHandle === "media")?.source;
-		const mediaNode = nodes.find((n) => n.id === mediaNodeId);
-		const mediaUrl = mediaNode?.data?.selectedImage?.urls?.regular || "";
-
-		// Extract hashtags
-		const hashtagNodeId = platformInputs.find((e) => e.targetHandle === "hashtags")?.source;
-		const hashtagNode = nodes.find((n) => n.id === hashtagNodeId);
-		const hashtags = hashtagNode?.data?.hashtags || [];
-
-		// Create content object using the platform adapter
-		if (draftContent || mediaUrl) {
-			const mediaUrls = mediaUrl ? [mediaUrl] : [];
-
-			// Format content for the specific platform
-			const platformContent = platformAdapter.formatContent({
-				prompt: draftNode?.data?.prompt || "",
-				draft: draftContent,
-				image: mediaNode?.data?.selectedImage,
-				platform: previewData.platform,
-				media_files: [],
-				hashtags: hashtags,
-			});
-
-			if (platformContent) {
-				setPreviewData((prev) => ({ ...prev, content: platformContent }));
-				updateNodeData(id, { content: platformContent });
-			}
-		}
-	}, [id, previewData.platform, nodes, edges, updateNodeData]);
-
-	// Handle device toggle
-	const handleDeviceToggle = () => {
-		const newViewAs = previewData.viewAs === "mobile" ? "desktop" : "mobile";
-		setPreviewData((prev) => ({ ...prev, viewAs: newViewAs }));
+	// Toggle device view
+	const toggleDeviceView = () => {
+		const newViewAs = viewAs === "mobile" ? "desktop" : "mobile";
+		setViewAs(newViewAs);
 		updateNodeData(id, { viewAs: newViewAs });
 	};
 
-	// Handle dark mode toggle
-	const handleDarkModeToggle = () => {
-		const newDarkMode = !previewData.darkMode;
-		setPreviewData((prev) => ({ ...prev, darkMode: newDarkMode }));
+	// Toggle dark mode
+	const toggleDarkMode = () => {
+		const newDarkMode = !darkMode;
+		setDarkMode(newDarkMode);
 		updateNodeData(id, { darkMode: newDarkMode });
 	};
 
-	// Handle approval status change
+	// Handle approval
 	const handleApprove = () => {
-		const newStatus = "approved";
-		setPreviewData((prev) => ({ ...prev, approvalStatus: newStatus }));
-		updateNodeData(id, { approvalStatus: newStatus });
+		updateNodeData(id, { approvalStatus: "approved" });
 	};
 
-	// Handle rejection status change
+	// Handle rejection
 	const handleReject = () => {
-		const newStatus = "rejected";
-		setPreviewData((prev) => ({ ...prev, approvalStatus: newStatus }));
-		updateNodeData(id, { approvalStatus: newStatus });
+		updateNodeData(id, { approvalStatus: "rejected" });
 	};
 
 	// Handle feedback change
 	const handleFeedbackChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-		const feedback = e.target.value;
-		setPreviewData((prev) => ({ ...prev, feedback }));
-		updateNodeData(id, { feedback });
+		updateNodeData(id, { feedback: e.target.value });
 	};
 
-	// Render content for specific platform
-	const renderPlatformPreview = () => {
-		if (!previewData.content || !previewData.platform) {
-			return (
-				<div className="flex items-center justify-center h-32 bg-gray-50 rounded-lg border border-gray-200">
-					<p className="text-gray-500 text-sm">No content to preview</p>
-				</div>
-			);
+	// Get approval status badge
+	const getApprovalBadge = () => {
+		if (!data.approvalStatus) return null;
+		interface Data {
+			approvalStatus: "pending" | "approved" | "rejected";
+			// ... other properties
 		}
 
-		// Get the platform adapter and preview component
-		const platformAdapter = platformRegistry.getAdapter(previewData.platform);
-		if (!platformAdapter) {
-			return (
-				<div className="flex items-center justify-center h-32 bg-red-50 rounded-lg border border-red-200">
-					<p className="text-red-500 text-sm">Platform adapter not found</p>
-				</div>
-			);
-		}
+		const badgeClasses = {
+			pending: "bg-yellow-100 text-yellow-800",
+			approved: "bg-green-100 text-green-800",
+			rejected: "bg-red-100 text-red-800",
+		} as const;
 
-		const PreviewComponent = platformAdapter.getPreviewComponent();
-
-		// Apply device size constraints
-		const containerClass = previewData.viewAs === "mobile" ? "max-w-xs mx-auto" : "w-full";
-
-		// Apply dark mode styling
-		const darkModeClass = previewData.darkMode ? "bg-gray-900 text-white" : "";
-
-		return (
-			<div className={`overflow-hidden ${containerClass} ${darkModeClass}`}>
-				<PreviewComponent content={previewData.content} />
-			</div>
-		);
+		<div className={`absolute top-2 right-2 text-xs px-2 py-0.5 rounded-full ${badgeClasses[data.approvalStatus as keyof typeof badgeClasses]}`}>
+			{data.approvalStatus.charAt(0).toUpperCase() + data.approvalStatus.slice(1)}
+		</div>;
 	};
 
-	// Render preview controls
+	// Render the preview controls
 	const renderControls = () => {
 		return (
 			<div className="flex flex-wrap gap-2 mb-3">
 				{/* Device toggle */}
-				<button
-					onClick={handleDeviceToggle}
-					className={`px-2 py-1 text-xs rounded-md ${previewData.viewAs === "mobile" ? "bg-blue-100 text-blue-700" : "bg-gray-100 text-gray-700"}`}>
+				<button onClick={toggleDeviceView} className={`px-2 py-1 text-xs rounded-md ${viewAs === "mobile" ? "bg-blue-100 text-blue-700" : "bg-gray-100 text-gray-700"}`}>
 					<span className="flex items-center">
 						<svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
 							<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
 						</svg>
-						{previewData.viewAs === "mobile" ? "Mobile" : "Desktop"}
+						{viewAs === "mobile" ? "Mobile" : "Desktop"}
 					</span>
 				</button>
 
 				{/* Dark mode toggle */}
-				<button onClick={handleDarkModeToggle} className={`px-2 py-1 text-xs rounded-md ${previewData.darkMode ? "bg-gray-800 text-white" : "bg-gray-100 text-gray-700"}`}>
+				<button onClick={toggleDarkMode} className={`px-2 py-1 text-xs rounded-md ${darkMode ? "bg-gray-800 text-white" : "bg-gray-100 text-gray-700"}`}>
 					<span className="flex items-center">
 						<svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
 							<path
@@ -206,66 +388,14 @@ const PreviewNode: React.FC<NodeProps> = ({ id, data, selected }) => {
 								d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"
 							/>
 						</svg>
-						{previewData.darkMode ? "Dark Mode" : "Light Mode"}
+						{darkMode ? "Dark Mode" : "Light Mode"}
 					</span>
 				</button>
 			</div>
 		);
 	};
 
-	// Render approval actions
-	const renderApprovalActions = () => {
-		return (
-			<div className="mt-3 border-t pt-2">
-				<div className="flex justify-between items-center mb-2">
-					<span className="text-xs font-medium text-gray-700">Approval Status:</span>
-					<div className="flex space-x-2">
-						<button
-							onClick={handleApprove}
-							className={`px-2 py-1 text-xs rounded-md ${
-								previewData.approvalStatus === "approved" ? "bg-green-100 text-green-700 font-medium" : "bg-gray-100 text-gray-700"
-							}`}>
-							Approve
-						</button>
-						<button
-							onClick={handleReject}
-							className={`px-2 py-1 text-xs rounded-md ${
-								previewData.approvalStatus === "rejected" ? "bg-red-100 text-red-700 font-medium" : "bg-gray-100 text-gray-700"
-							}`}>
-							Reject
-						</button>
-					</div>
-				</div>
-
-				{/* Feedback textarea */}
-				<textarea
-					value={previewData.feedback}
-					onChange={handleFeedbackChange}
-					placeholder="Add feedback or revision notes here..."
-					className="w-full p-2 text-xs border border-gray-300 rounded-md"
-					rows={2}
-				/>
-			</div>
-		);
-	};
-
-	// Render warnings
-	const renderWarnings = () => {
-		const warnings = previewData.content?.warnings || [];
-
-		if (warnings.length === 0) return null;
-
-		return (
-			<div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded-md">
-				<h4 className="text-xs font-medium text-yellow-800 mb-1">Warnings:</h4>
-				<ul className="text-xs text-yellow-700 space-y-1 list-disc pl-4">
-					{warnings.map((warning, index) => (
-						<li key={index}>{warning}</li>
-					))}
-				</ul>
-			</div>
-		);
-	};
+	const PlatformPreviewComponent = getPlatformPreviewRenderer();
 
 	return (
 		<div
@@ -296,29 +426,78 @@ const PreviewNode: React.FC<NodeProps> = ({ id, data, selected }) => {
 			</div>
 
 			{/* Content */}
-			<div className="p-4 bg-opacity-10" style={{ backgroundColor: "#f0f9ff", minHeight: "100px", maxHeight: "300px", overflow: "auto" }}>
+			<div className={`p-4 relative ${darkMode ? "bg-gray-900 text-white" : "bg-gray-50"}`} style={{ minHeight: "100px", maxHeight: "400px", overflow: "auto" }}>
+				{/* Approval Status Badge */}
+				{getApprovalBadge()}
+
 				<div className="space-y-2">
 					{/* Platform name and preview controls */}
-					{previewData.platform ? (
+					{data.platform ? (
 						<>
 							<div className="flex justify-between items-center">
-								<span className="text-sm font-medium capitalize">{previewData.platform} Preview</span>
+								<span className="text-sm font-medium capitalize">{data.platform} Preview</span>
 							</div>
 
 							{/* Preview controls */}
 							{renderControls()}
 
 							{/* Platform-specific preview */}
-							{renderPlatformPreview()}
+							<div className={viewAs === "mobile" ? "max-w-xs mx-auto" : "w-full"}>
+								<PlatformPreviewComponent content={data.content || {}} />
+							</div>
 
 							{/* Warnings */}
-							{renderWarnings()}
+							{data.content?.warnings && data.content.warnings.length > 0 && (
+								<div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded-md">
+									<h4 className="text-xs font-medium text-yellow-800 mb-1">Warnings:</h4>
+									<ul className="text-xs text-yellow-700 space-y-1 list-disc pl-4">
+										{data.content.warnings.map((warning: string, index: number) => (
+											<li key={index}>{warning}</li>
+										))}
+									</ul>
+								</div>
+							)}
 
-							{/* Approval actions */}
-							{renderApprovalActions()}
+							{/* Approval controls */}
+							<div className="mt-3 pt-2 border-t border-gray-200 dark:border-gray-700">
+								<div className="flex justify-between items-center mb-2">
+									<span className="text-xs font-medium">Approval Status:</span>
+									<div className="flex space-x-2">
+										<button
+											onClick={handleApprove}
+											className={`px-2 py-1 text-xs rounded-md ${
+												data.approvalStatus === "approved"
+													? "bg-green-100 text-green-700 font-medium"
+													: "bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300"
+											}`}>
+											Approve
+										</button>
+										<button
+											onClick={handleReject}
+											className={`px-2 py-1 text-xs rounded-md ${
+												data.approvalStatus === "rejected"
+													? "bg-red-100 text-red-700 font-medium"
+													: "bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300"
+											}`}>
+											Reject
+										</button>
+									</div>
+								</div>
+
+								{/* Feedback textarea */}
+								<textarea
+									value={data.feedback || ""}
+									onChange={handleFeedbackChange}
+									placeholder="Add feedback or revision notes here..."
+									className={`w-full p-2 text-xs border rounded-md ${
+										darkMode ? "bg-gray-800 border-gray-700 text-white" : "bg-white border-gray-300 text-gray-700"
+									}`}
+									rows={2}
+								/>
+							</div>
 						</>
 					) : (
-						<div className="flex flex-col items-center justify-center h-32 bg-gray-50 rounded-lg border border-gray-200">
+						<div className="flex flex-col items-center justify-center h-32 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
 							<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-gray-400 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
 								<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
 								<path
@@ -328,7 +507,7 @@ const PreviewNode: React.FC<NodeProps> = ({ id, data, selected }) => {
 									d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
 								/>
 							</svg>
-							<p className="text-gray-500 text-sm">Connect to a Platform Node to preview content</p>
+							<p className={`text-gray-500 dark:text-gray-400 text-sm`}>Connect to a Platform Node to preview content</p>
 						</div>
 					)}
 				</div>

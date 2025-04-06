@@ -12,11 +12,17 @@ import NodeDetailsPanel from "../workflow/custom/NodeDetailsPanel";
 import AnimatedEdge from "../workflow/custom/AnimatedEdge";
 import { IdeaNode, DraftNode, MediaNode, PlatformNode, ConditionalNode, CSSVariablesStyle } from "../workflow/custom/StyledNodes";
 import { WorkflowExecutor } from "../workflow/workflowExecutor";
+import {
+	EnhancedIdeaNode,
+	EnhancedDraftNode,
 
+	// Import other enhanced nodes as needed
+} from "../workflow/EnhanceNodes";
 // Register custom node types
 const nodeTypes: NodeTypes = {
-	ideaNode: IdeaNode,
-	draftNode: DraftNode,
+	ideaNode: EnhancedIdeaNode,
+	draftNode: EnhancedDraftNode,
+
 	mediaNode: MediaNode,
 	platformNode: PlatformNode,
 	conditionalNode: ConditionalNode,

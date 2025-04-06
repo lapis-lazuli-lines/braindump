@@ -7,8 +7,10 @@ import { withPortActivityTracking } from "./visualization/integration/PortActivi
 import {
 	IdeaNode,
 	DraftNode,
-	// Import only the node types that actually exist in your StyledNodes file
-	// Add any other node types you have
+	MediaNode,
+	PlatformNode,
+	ConditionalNode,
+	// Import any other node types you have
 } from "./custom/StyledNodes";
 
 // Create enhanced versions of each node type
@@ -26,18 +28,28 @@ export const EnhancedDraftNode = withPortActivityTracking((props: NodeProps) => 
 	</>
 ));
 
-// Add more enhanced nodes here based on what's available in your StyledNodes file
-// For example:
-// export const EnhancedAnotherNodeType = withPortActivityTracking((props: NodeProps) => (
-//   <>
-//     <AnotherNodeType {...props} />
-//     <NodeStatusIndicator
-//       nodeId={props.id}
-//       position="top-right"
-//       size="small"
-//     />
-//   </>
-// ));
+export const EnhancedMediaNode = withPortActivityTracking((props: NodeProps) => (
+	<>
+		<MediaNode {...props} />
+		<NodeStatusIndicator nodeId={props.id} position="top-right" size="small" />
+	</>
+));
+
+export const EnhancedPlatformNode = withPortActivityTracking((props: NodeProps) => (
+	<>
+		<PlatformNode {...props} />
+		<NodeStatusIndicator nodeId={props.id} position="top-right" size="small" />
+	</>
+));
+
+export const EnhancedConditionalNode = withPortActivityTracking((props: NodeProps) => (
+	<>
+		<ConditionalNode {...props} />
+		<NodeStatusIndicator nodeId={props.id} position="top-right" size="small" />
+	</>
+));
+
+// Add more enhanced nodes for each node type you have
 
 // If you need more control over the node enhancement, you can create a factory function
 export const createEnhancedNode = (
@@ -57,9 +69,3 @@ export const createEnhancedNode = (
 
 	return options.trackPortActivity ? withPortActivityTracking(Component) : Component;
 };
-
-// Example usage of the factory function:
-// export const EnhancedCustomNode = createEnhancedNode(CustomNode, {
-//   indicatorPosition: 'bottom-right',
-//   indicatorSize: 'medium'
-// });

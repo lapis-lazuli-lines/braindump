@@ -2,6 +2,7 @@
 import React, { useState, useCallback, useRef } from "react";
 import ReactFlow, { ReactFlowProvider, MiniMap, Controls, Background, Panel, NodeTypes, EdgeTypes, Node } from "reactflow";
 import "reactflow/dist/style.css";
+import { EnhancedWorkflowExecutor } from "../workflow/visualization/integration/VisualizationIntegrationAdapter";
 
 // Import our custom components
 import NodePalette from "../workflow/NodePallete";
@@ -139,7 +140,8 @@ const ModernWorkflowCreator: React.FC = () => {
 	const executeWorkflow = useCallback(async () => {
 		setIsExecuting(true);
 		try {
-			const executor = new WorkflowExecutor(nodes, edges);
+			// Use enhanced workflow executor instead of the original
+			const executor = new EnhancedWorkflowExecutor(nodes, edges);
 			const result = await executor.executeWorkflow();
 			setExecutionResult(result);
 		} catch (error) {

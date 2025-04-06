@@ -1,3 +1,4 @@
+import EnhancedWorkflowCreator from "../workflow/EnhancedWorkflowCreator";
 import ModernWorkflowCreator from "./ModernWorkflowCreator";
 
 /**
@@ -7,7 +8,7 @@ import ModernWorkflowCreator from "./ModernWorkflowCreator";
 const WorkflowCreator = () => {
 	return (
 		<div className="workflow-creator-container">
-			<ModernWorkflowCreator />
+			<EnhancedWorkflowCreator />
 
 			<style>{`
 				.workflow-creator-container {

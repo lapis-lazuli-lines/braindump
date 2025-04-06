@@ -1,6 +1,7 @@
 // client/src/components/workflow/workflowStore.ts
 import { create } from "zustand";
-import { Connection, Edge, EdgeChange, Node, NodeChange, addEdge, OnNodesChange, OnEdgesChange, OnConnect, applyNodeChanges, applyEdgeChanges } from "reactflow";
+import { Connection, Edge, EdgeChange, Node, NodeChange, addEdge, OnNodesChange, OnEdgesChange, OnConnect, applyNodeChanges, applyEdgeChanges, NodeRemoveChange } from "reactflow";
+import { produce } from "immer"; // Optional - for immutable state updates
 
 interface WorkflowState {
 	nodes: Node[];
@@ -33,28 +34,49 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
 	edges: initialEdges,
 	selectedNode: null,
 
+	// Fix: Memoize node changes with edge removal logic to prevent cascading updates
 	onNodesChange: (changes: NodeChange[]) => {
-		set({
-			nodes: applyNodeChanges(changes, get().nodes),
-		});
+		// Check if we have node removals - if so, handle associated edges separately
+		const nodeRemovals = changes.filter((change): change is NodeRemoveChange => change.type === "remove");
+
+		if (nodeRemovals.length > 0) {
+			set((state) => {
+				// Get IDs of nodes being removed
+				const removedNodeIds = new Set(nodeRemovals.map((change) => change.id));
+
+				// First, apply node changes
+				const newNodes = applyNodeChanges(changes, state.nodes);
+
+				// Then filter out edges connected to removed nodes
+				const newEdges = state.edges.filter((edge) => !removedNodeIds.has(edge.source) && !removedNodeIds.has(edge.target));
+
+				// Return a single state update with both changes
+				return {
+					nodes: newNodes,
+					edges: newEdges,
+				};
+			});
+		} else {
+			// If no node removals, just apply changes normally
+			set({ nodes: applyNodeChanges(changes, get().nodes) });
+		}
 	},
 
 	onEdgesChange: (changes: EdgeChange[]) => {
-		set({
-			edges: applyEdgeChanges(changes, get().edges),
-		});
+		set({ edges: applyEdgeChanges(changes, get().edges) });
 	},
 
 	onConnect: (connection: Connection) => {
-		set({
-			edges: addEdge(
-				{
-					...connection,
-					type: "animated", // Always use animated edges
-				},
-				get().edges
-			),
-		});
+		// Create the new edge
+		const newEdge = {
+			...connection,
+			type: "animated", // Always use animated edges
+		};
+
+		// Update edges in a single operation
+		set((state) => ({
+			edges: addEdge(newEdge, state.edges),
+		}));
 	},
 
 	addNode: (node: Partial<Node>) => {
@@ -63,25 +85,35 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
 			...node,
 		};
 
-		set({
-			nodes: [...get().nodes, newNode as Node],
-		});
+		set((state) => ({
+			nodes: [...state.nodes, newNode as Node],
+		}));
 	},
 
 	updateNodeData: (nodeId: string, data: any) => {
-		set({
-			nodes: get().nodes.map((node) => {
+		set((state) => {
+			// Create new nodes array with updated node data
+			const updatedNodes = state.nodes.map((node) => {
 				if (node.id === nodeId) {
-					// Update the selected node as well if it's the same node
-					if (get().selectedNode?.id === nodeId) {
-						set({
-							selectedNode: { ...node, data: { ...node.data, ...data } },
-						});
-					}
 					return { ...node, data: { ...node.data, ...data } };
 				}
 				return node;
-			}),
+			});
+
+			// Update selected node reference if needed
+			let updatedSelectedNode = state.selectedNode;
+			if (state.selectedNode?.id === nodeId) {
+				updatedSelectedNode = {
+					...state.selectedNode,
+					data: { ...state.selectedNode.data, ...data },
+				};
+			}
+
+			// Return a single state update for both changes
+			return {
+				nodes: updatedNodes,
+				selectedNode: updatedSelectedNode,
+			};
 		});
 	},
 
@@ -89,28 +121,28 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
 		// Get all edges connected to this node to remove them too
 		const nodesToRemove = new Set([nodeId]);
 
-		// Remove the edges first
-		set({
-			edges: get().edges.filter((edge) => !nodesToRemove.has(edge.source) && !nodesToRemove.has(edge.target)),
-		});
+		// Update both nodes and edges in a single state update
+		set((state) => {
+			// Filter out the edges connected to the removed node
+			const filteredEdges = state.edges.filter((edge) => !nodesToRemove.has(edge.source) && !nodesToRemove.has(edge.target));
 
-		// Then remove the node
-		set({
-			nodes: get().nodes.filter((node) => !nodesToRemove.has(node.id)),
-		});
+			// Filter out the removed nodes
+			const filteredNodes = state.nodes.filter((node) => !nodesToRemove.has(node.id));
 
-		// Clear selected node if it was the deleted one
-		if (get().selectedNode?.id === nodeId) {
-			set({
-				selectedNode: null,
-			});
-		}
+			// Clear selected node if it was deleted
+			const newSelectedNode = state.selectedNode?.id === nodeId ? null : state.selectedNode;
+
+			// Return a single state update
+			return {
+				edges: filteredEdges,
+				nodes: filteredNodes,
+				selectedNode: newSelectedNode,
+			};
+		});
 	},
 
 	setSelectedNode: (node: Node | null) => {
-		set({
-			selectedNode: node,
-		});
+		set({ selectedNode: node });
 	},
 
 	resetWorkflow: () => {
@@ -152,7 +184,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
 
 		if (!workflow) return false;
 
-		// Update state with loaded workflow
+		// Update state with loaded workflow in a single operation
 		set({
 			nodes: workflow.nodes,
 			edges: workflow.edges,

@@ -482,25 +482,25 @@ function getPointOnPath(path: string, percentage: number): { x: number; y: numbe
 }
 
 // Helper function to get the midpoint of a path
-function getPathMidpoint(path: string): { x: number; y: number } {
-	try {
-		// Create a temporary path element
-		const svgNS = "http://www.w3.org/2000/svg";
-		const pathElement = document.createElementNS(svgNS, "path");
-		pathElement.setAttribute("d", path);
+// function getPathMidpoint(path: string): { x: number; y: number } {
+// 	try {
+// 		// Create a temporary path element
+// 		const svgNS = "http://www.w3.org/2000/svg";
+// 		const pathElement = document.createElementNS(svgNS, "path");
+// 		pathElement.setAttribute("d", path);
 
-		// Get total length of the path
-		const pathLength = pathElement.getTotalLength();
+// 		// Get total length of the path
+// 		const pathLength = pathElement.getTotalLength();
 
-		// Get midpoint
-		const point = pathElement.getPointAtLength(pathLength / 2);
+// 		// Get midpoint
+// 		const point = pathElement.getPointAtLength(pathLength / 2);
 
-		return { x: point.x, y: point.y };
-	} catch (error) {
-		console.error("Error getting path midpoint:", error);
-		return { x: 0, y: 0 };
-	}
-}
+// 		return { x: point.x, y: point.y };
+// 	} catch (error) {
+// 		console.error("Error getting path midpoint:", error);
+// 		return { x: 0, y: 0 };
+// 	}
+// }
 
 // Helper function to get edge data information
 function getEdgeData(source: string, target: string, sourceHandleId?: string, targetHandleId?: string) {

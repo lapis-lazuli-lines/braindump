@@ -1,6 +1,6 @@
 // client/src/components/workflow/custom/nodes/ConditionalNode.tsx
 import React from "react";
-import { Handle, Position, NodeProps } from "reactflow";
+import { Position, NodeProps } from "reactflow";
 import { StyledNode } from "../custom/StyledNodes";
 
 export const ConditionalNode: React.FC<NodeProps> = (props) => {

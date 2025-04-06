@@ -2,7 +2,7 @@
 import React from "react";
 import { Handle, Position, NodeProps } from "reactflow";
 
-const TriggerNode: React.FC<NodeProps> = ({ data }) => {
+const TriggerNode: React.FC<NodeProps> = () => {
 	return (
 		<div className="bg-[#1e0936] text-white p-4 rounded-xl shadow-md min-w-[180px]">
 			<div className="flex items-center">

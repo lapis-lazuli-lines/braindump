@@ -1,16 +1,16 @@
 // src/components/workflow/EnhancedWorkflowCreator.tsx
-import React, { useState, useCallback } from "react";
+import React, { useState } from "react";
 import { ReactFlowProvider } from "reactflow";
 import ModernWorkflowCreator from "../wavee/ModernWorkflowCreator";
 import VisualizationIntegrationAdapter from "./visualization/integration/VisualizationIntegrationAdapter";
 // import { DataType } from "./registry/nodeRegistry";
 // import EnhancedAnimatedEdge from "./visualization/EnhancedAnimatedEdge";
-import NodeStatusIndicator from "./visualization/NodeStatusIndicator";
+// import NodeStatusIndicator from "./visualization/NodeStatusIndicator";
 import { ExecutionTimeline, ExecutionPathHistory } from "./visualization/integration/ExecutionPathAdapter";
-import { useWorkflowPerformance } from "./visualization/integration/PerformanceManager";
+// import { useWorkflowPerformance } from "./visualization/integration/PerformanceManager";
 
 // Register our enhanced components
-import { IdeaNode, DraftNode, MediaNode, PlatformNode, ConditionalNode } from "./custom/StyledNodes";
+// import { MediaNode, PlatformNode, ConditionalNode } from "./custom/StyledNodes";
 // Enhanced versions of the base nodes with visualization capabilities
 // const EnhancedIdeaNode = (props: any) => {
 // 	// Add NodeStatusIndicator to the base node
@@ -31,32 +31,32 @@ import { IdeaNode, DraftNode, MediaNode, PlatformNode, ConditionalNode } from ".
 // 	);
 // };
 
-const EnhancedMediaNode = (props: any) => {
-	return (
-		<>
-			<MediaNode {...props} />
-			<NodeStatusIndicator nodeId={props.id} position="top-right" size="small" />
-		</>
-	);
-};
+// const EnhancedMediaNode = (props: any) => {
+// 	return (
+// 		<>
+// 			<MediaNode {...props} />
+// 			<NodeStatusIndicator nodeId={props.id} position="top-right" size="small" />
+// 		</>
+// 	);
+// };
 
-const EnhancedPlatformNode = (props: any) => {
-	return (
-		<>
-			<PlatformNode {...props} />
-			<NodeStatusIndicator nodeId={props.id} position="top-right" size="small" />
-		</>
-	);
-};
+// const EnhancedPlatformNode = (props: any) => {
+// 	return (
+// 		<>
+// 			<PlatformNode {...props} />
+// 			<NodeStatusIndicator nodeId={props.id} position="top-right" size="small" />
+// 		</>
+// 	);
+// };
 
-const EnhancedConditionalNode = (props: any) => {
-	return (
-		<>
-			<ConditionalNode {...props} />
-			<NodeStatusIndicator nodeId={props.id} position="top-right" size="small" />
-		</>
-	);
-};
+// const EnhancedConditionalNode = (props: any) => {
+// 	return (
+// 		<>
+// 			<ConditionalNode {...props} />
+// 			<NodeStatusIndicator nodeId={props.id} position="top-right" size="small" />
+// 		</>
+// 	);
+// };
 
 // Enhanced node types mapping
 // const enhancedNodeTypes = {
@@ -77,17 +77,8 @@ const EnhancedConditionalNode = (props: any) => {
  * visualization system for data flow insights.
  */
 const EnhancedWorkflowCreator: React.FC = () => {
-	const [showExecutionTimeline, setShowExecutionTimeline] = useState(true);
-	const [showPathHistory, setShowPathHistory] = useState(false);
-
-	// Get performance metrics hook
-	const { optimizeForComplexity, getWorkflowComplexity } = useWorkflowPerformance();
-
-	// Callback to optimize workflow visualization based on complexity
-	const handleAutoOptimize = useCallback(() => {
-		const complexity = optimizeForComplexity();
-		console.log(`Workflow optimized for complexity: ${complexity.level}`);
-	}, [optimizeForComplexity]);
+	const [showExecutionTimeline, _setShowExecutionTimeline] = useState(true);
+	const [showPathHistory, _setShowPathHistory] = useState(false);
 
 	return (
 		<ReactFlowProvider>

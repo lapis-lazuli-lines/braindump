@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
-import { useReactFlow, Node, Edge, ReactFlowInstance, NodeChange, Position } from "reactflow";
+import { useReactFlow, Node, Edge } from "reactflow";
 import { useExecutionPathVisualizer } from "./ExecutionPathVisualizer";
 import { usePortActivity } from "./PortActivityIndicator";
-import { useTransformationVisualizer } from "./TransformationVisualizer";
+// import { useTransformationVisualizer } from "./TransformationVisualizer";
 import { usePerformanceOptimizer } from "./PerformanceOptimizer";
 
 // Types
@@ -129,7 +129,7 @@ const IntegratedNodeInspector: React.FC<IntegratedNodeInspectorProps> = ({ nodeI
 	// Handle node re-execution
 	const handleReExecute = useCallback(() => {
 		if (onReExecute) {
-			const inputs = executionData?.inputData || {};
+			const inputs = executionData?.inputData ?? {};
 			onReExecute(nodeId, inputs);
 		}
 	}, [nodeId, onReExecute, executionData]);
@@ -318,7 +318,9 @@ const IntegratedNodeInspector: React.FC<IntegratedNodeInspectorProps> = ({ nodeI
 															<div className="data-preview">
 																<pre>{JSON.stringify(executionData.inputData[port.id] || {}, null, 2)}</pre>
 															</div>
-															<button className="edit-data-button" onClick={() => handleEditInput(port.id, executionData.inputData[port.id] || {})}>
+															<button
+																className="edit-data-button"
+																onClick={() => handleEditInput(port.id, (executionData.inputData ?? {})[port.id] || {})}>
 																Edit
 															</button>
 														</>

@@ -40,7 +40,7 @@ const NodeDetailsPanel: React.FC<NodeDetailsPanelProps> = ({ selectedNode, updat
 	// Register global preview handler
 	useEffect(() => {
 		// This would be better handled through context in a real app
-		window.openImagePreview = (image: any) => {
+		window.openImagePreview = () => {
 			if (selectedNode?.type === "mediaNode") {
 				setShowImagePreview(true);
 			}
@@ -512,29 +512,29 @@ const NodeDetailsPanel: React.FC<NodeDetailsPanelProps> = ({ selectedNode, updat
 	};
 
 	// Content specific to Media Selection node
-	const searchImages = async () => {
-		if (!selectedNode.data.query) return;
+	// const searchImages = async () => {
+	// 	if (!selectedNode.data.query) return;
 
-		setIsSearching(true);
+	// 	setIsSearching(true);
 
-		try {
-			// Call server API endpoint
-			const response = await fetch(`/api/images/suggest?query=${encodeURIComponent(selectedNode.data.query)}`);
-			const result = await response.json();
+	// 	try {
+	// 		// Call server API endpoint
+	// 		const response = await fetch(`/api/images/suggest?query=${encodeURIComponent(selectedNode.data.query)}`);
+	// 		const result = await response.json();
 
-			if (result.images) {
-				// Update node data with real Unsplash images
-				updateNodeData(selectedNode.id, {
-					images: result.images,
-					hasSearched: true,
-				});
-			}
-		} catch (error) {
-			console.error("Failed to search images:", error);
-		} finally {
-			setIsSearching(false);
-		}
-	};
+	// 		if (result.images) {
+	// 			// Update node data with real Unsplash images
+	// 			updateNodeData(selectedNode.id, {
+	// 				images: result.images,
+	// 				hasSearched: true,
+	// 			});
+	// 		}
+	// 	} catch (error) {
+	// 		console.error("Failed to search images:", error);
+	// 	} finally {
+	// 		setIsSearching(false);
+	// 	}
+	// };
 	// Render image preview modal for media node
 	const renderImagePreviewModal = () => {
 		if (!showImagePreview || !selectedNode || selectedNode.type !== "mediaNode" || !selectedNode.data.selectedImage) {

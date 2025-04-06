@@ -347,10 +347,6 @@ const PreviewNode: React.FC<NodeProps> = ({ id, data, selected }) => {
 	// Get approval status badge
 	const getApprovalBadge = () => {
 		if (!data.approvalStatus) return null;
-		interface Data {
-			approvalStatus: "pending" | "approved" | "rejected";
-			// ... other properties
-		}
 
 		const badgeClasses = {
 			pending: "bg-yellow-100 text-yellow-800",

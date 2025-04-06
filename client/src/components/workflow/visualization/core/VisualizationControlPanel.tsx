@@ -164,7 +164,7 @@ const VisualizationControlPanel: React.FC<VisualizationControlPanelProps> = ({ d
 		const preset = performancePresets[presetName];
 		setSettings((prev) => ({
 			...prev,
-			...preset,
+			...(preset as Partial<VisualizationSettings>),
 		}));
 	}, []);
 

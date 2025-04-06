@@ -55,7 +55,7 @@ interface ExecutionPathOverlayProps {
 export const ExecutionPathOverlay: React.FC<ExecutionPathOverlayProps> = ({ nodes, edges }) => {
 	const { getNodeStatus, getEdgeStatus, isConditionalPath } = useExecutionPathVisualizer();
 	const { registerAnimation } = usePerformanceOptimizer();
-	const { getNode, getEdge, setNodes, setEdges } = useReactFlow();
+	const { setNodes, setEdges } = useReactFlow();
 
 	// Update node styles based on execution status
 	const updateNodeStyles = useCallback(() => {

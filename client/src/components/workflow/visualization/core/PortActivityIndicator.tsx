@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
-import { Handle, Position, NodeProps, useReactFlow } from "reactflow";
-import { usePerformanceOptimizer, useViewportOptimization } from "./PerformanceOptimizer";
-import { useExecutionPathVisualizer } from "./ExecutionPathVisualizer";
+import { Handle, Position, NodeProps } from "reactflow";
+import { useViewportOptimization } from "./PerformanceOptimizer";
 
 // Types for port data and activity
 interface PortData {
@@ -257,8 +256,8 @@ interface EnhancedPortHandleProps {
 export const EnhancedPortHandle: React.FC<EnhancedPortHandleProps> = ({ type, position, id, nodeId, index, style, dataType, label, isConnected, className }) => {
 	const portType = type === "source" ? "output" : "input";
 	const { registerPort, unregisterPort, getPortActivity, showDataPreview } = usePortActivity();
-	const { registerAnimation } = usePerformanceOptimizer();
-	const animationRef = useRef<HTMLDivElement>(null);
+	// const { registerAnimation } = usePerformanceOptimizer();
+	const animationRef = useRef<HTMLDivElement | null>(null) as React.MutableRefObject<HTMLDivElement | null>;
 
 	// Generate a unique port ID
 	const portId = useMemo(() => `${nodeId}-${portType}-${id || index}`, [nodeId, portType, id, index]);

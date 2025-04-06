@@ -36,9 +36,8 @@ const EnhancedAnimatedEdge: React.FC<EdgeProps> = ({
 	const sourceNode = getNode(source);
 	const targetNode = getNode(target);
 
-	// Calculate path once when the positions change
 	const [edgePath, labelX, labelY] = useMemo(() => {
-		const path = getSmoothStepPath({
+		const [path] = getSmoothStepPath({
 			sourceX,
 			sourceY,
 			sourcePosition,

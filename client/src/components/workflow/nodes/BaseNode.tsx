@@ -97,12 +97,12 @@ export const BaseNode: React.FC<BaseNodeProps> = ({
 	};
 
 	// Handle delete button click
-	const handleDelete = (e: React.MouseEvent) => {
-		e.stopPropagation();
-		if (onDelete) {
-			onDelete(id);
-		}
-	};
+	// const handleDelete = (e: React.MouseEvent) => {
+	// 	e.stopPropagation();
+	// 	if (onDelete) {
+	// 		onDelete(id);
+	// 	}
+	// };
 
 	// Render input handles based on node definition
 	const renderInputHandles = () => {

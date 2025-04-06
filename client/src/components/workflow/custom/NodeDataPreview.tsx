@@ -1,7 +1,7 @@
 // client/src/components/workflow/custom/NodeDataPreview.tsx
 import React, { useState, useRef, useEffect } from "react";
 import { useWorkflowStore } from "../workflowStore";
-import { DataType } from "../registry/nodeRegistry";
+// import { DataType } from "../registry/nodeRegistry";
 
 interface NodeDataPreviewProps {
 	nodeId: string;

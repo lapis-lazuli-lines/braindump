@@ -1,6 +1,6 @@
 // src/components/workflow/WorkflowController.tsx
 import React, { useState, useEffect, useCallback } from "react";
-import ReactFlow, { Controls, MiniMap, Background, Edge, Node, useNodesState, useEdgesState } from "reactflow";
+import ReactFlow, { Controls, MiniMap, Background, Node } from "reactflow";
 import "reactflow/dist/style.css";
 
 import { useWorkflowStore } from "./workflowStore";

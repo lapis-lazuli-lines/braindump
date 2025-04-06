@@ -38,7 +38,7 @@ export const validateNodeConnection = (connection: Connection, nodes: Node[]): V
 
 	if (!validationResult.valid) {
 		// Add suggestion for alternative connections if applicable
-		const suggestion = getSuggestionForInvalidConnection(sourceType, sourceHandle, targetType, targetHandle, nodes);
+		const suggestion = getSuggestionForInvalidConnection(sourceType, sourceHandle, targetType, targetHandle);
 
 		return {
 			valid: false,
@@ -101,7 +101,7 @@ export const validateNodeAddition = (nodeType: string, existingNodes: Node[]): V
 /**
  * Get suggestions for why a connection is invalid and alternatives
  */
-function getSuggestionForInvalidConnection(sourceType: string, sourceHandle: string, targetType: string, targetHandle: string, nodes: Node[]): string | undefined {
+function getSuggestionForInvalidConnection(sourceType: string, sourceHandle: string, targetType: string, targetHandle: string): string | undefined {
 	const sourceNodeDef = nodeTypeRegistry[sourceType];
 	const targetNodeDef = nodeTypeRegistry[targetType];
 

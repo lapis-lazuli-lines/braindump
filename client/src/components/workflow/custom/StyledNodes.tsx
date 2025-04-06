@@ -1,5 +1,5 @@
 // client/src/components/workflow/custom/StyledNodes.tsx
-import React, { useState } from "react";
+import React from "react";
 import { Handle, Position, NodeProps } from "reactflow";
 import { EditableNodeWrapper, IdeaNodeEditContent, DraftNodeEditContent, MediaNodeEditContent, PlatformNodeEditContent, ConditionalNodeEditContent } from "./EditableNodeWrapper";
 
@@ -59,7 +59,6 @@ const workflowTheme = {
 
 export const StyledNode: React.FC<StyledNodeProps> = ({ id, data, selected, title, icon, color, borderColor, children, handles = {} }) => {
 	// State for options menu
-	const [_showOptions, setShowOptions] = useState(false);
 
 	const handleOpenOptions = (e: React.MouseEvent) => {
 		e.stopPropagation(); // Prevent node selection when clicking options

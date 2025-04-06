@@ -1,5 +1,5 @@
 // src/components/workflow/visualization/integration/PortActivityAdapter.tsx
-import React, { useEffect, useRef } from "react";
+import React, { useEffect } from "react";
 import { Position, useReactFlow, NodeProps } from "reactflow";
 import { useVisualizationIntegration } from "./VisualizationIntegrationProvide";
 import { PortActivityProvider, usePortActivity, EnhancedPortHandle } from "../core/PortActivityIndicator";
@@ -58,7 +58,7 @@ const PortActivityAdapterInner: React.FC = () => {
 	const { updatePortActivity, registerPort } = usePortActivity();
 
 	// Track nodes and ports that have been registered
-	const registeredPorts = useRef(new Set<string>());
+	// const registeredPorts = useRef(new Set<string>());
 
 	// Initialize ports from workflow nodes
 	useEffect(() => {
@@ -211,7 +211,7 @@ interface EnhancedPortProps {
 }
 
 // Enhanced port handle component that connects to the port activity system
-export const EnhancedPort: React.FC<EnhancedPortProps> = ({ id, nodeId, type, position, portData = {}, style, className, isConnected, isConnectable }) => {
+export const EnhancedPort: React.FC<EnhancedPortProps> = ({ id, nodeId, type, position, portData = {}, style, className, isConnected }) => {
 	const effectiveId = id || (type === "source" ? "output" : "input");
 	const index = portData.index || 0;
 	const dataType = portData.dataType || DataType.ANY;

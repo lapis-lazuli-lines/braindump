@@ -1,16 +1,16 @@
 // src/components/workflow/visualization/integration/VisualizationIntegrationAdapter.tsx
 import React, { useEffect } from "react";
 import { useReactFlow, Edge } from "reactflow";
-import { VisualizationIntegrationProvider } from "./VisualizationIntegrationProvider";
-import { PerformanceManager } from "./PerformanceManager";
+import { VisualizationIntegrationProvider } from "./VisualizationIntegrationProvide";
+import PerformanceManager from "./PerformanceManager";
 import { ConfigurationProvider } from "./ConfigurationProvider";
 import ExecutionPathAdapter from "./ExecutionPathAdapter";
 import PortActivityAdapter from "./PortActivityAdapter";
 import TransformationAdapter from "./TransformationAdapter";
 import VisualizationControlPanel from "./VisualizationControlPanel";
 import EnhancedAnimatedEdge from "../EnhancedAnimatedEdge";
+import { WorkflowExecutor } from "../../workflowExecutor";
 import { useWorkflowStore } from "../../workflowStore";
-
 // Extended types for the WorkflowExecutor for visualization events
 interface ExecutorOptions {
 	onNodeExecutionStart?: (nodeId: string, data?: any) => void;
@@ -31,7 +31,20 @@ interface VisualizationIntegrationAdapterProps {
 	controlPanelPosition?: "top-right" | "top-left" | "bottom-right" | "bottom-left" | "floating";
 	showDataPreview?: boolean;
 }
-
+interface WorkflowExecutorOptions {
+	onNodeExecutionStart?: (nodeId: string) => void;
+	onNodeExecutionComplete?: (nodeId: string, result: any) => void;
+	onNodeExecutionError?: (nodeId: string, error: any) => void;
+}
+interface VisualizationExecutorOptions extends WorkflowExecutorOptions {
+	// Additional callbacks for visualization
+	onNodeExecutionProgress?: (nodeId: string, progress: number, data?: any) => void;
+	onEdgeDataFlow?: (edgeId: string, data?: any) => void;
+	onWorkflowStart?: () => void;
+	onWorkflowComplete?: (results?: any) => void;
+	onWorkflowError?: (error: any) => void;
+	onDataTransform?: (sourceId: string, targetId: string, edgeId: string, beforeData: any, afterData: any) => void;
+}
 /**
  * The VisualizationIntegrationAdapter wraps the workflow creator with all the necessary
  * visualization providers to enable data flow visualization features.
@@ -44,7 +57,6 @@ const VisualizationIntegrationAdapter: React.FC<VisualizationIntegrationAdapterP
 }) => {
 	const { getEdges } = useReactFlow();
 	const { edges } = useWorkflowStore();
-
 	// Register our enhanced edge type for ReactFlow
 	useEffect(() => {
 		// This would be done in your node/edge registration system
@@ -125,7 +137,7 @@ const VisualizationIntegrationAdapter: React.FC<VisualizationIntegrationAdapterP
 export class EnhancedWorkflowExecutor {
 	private originalExecutor: any;
 	private visualizationOptions: ExecutorOptions;
-	private dispatchVisualizationEvent: any;
+	private dispatchVisualizationEvent: (event: any) => void;
 
 	constructor(nodes: any[], edges: Edge[], options?: ExecutorOptions) {
 		// Visualization options
@@ -144,36 +156,21 @@ export class EnhancedWorkflowExecutor {
 
 		// Create the original executor with enhanced options
 		this.originalExecutor = new WorkflowExecutor(nodes, edges, {
-			onNodeExecutionStart: (nodeId, data) => {
+			onNodeExecutionStart: (nodeId: string) => {
 				// Emit visualization event
 				this.dispatchVisualizationEvent({
 					type: "node_execution_start",
 					nodeId,
-					data,
+					// We don't have data here, as original WorkflowExecutor doesn't provide it
 				});
 
 				// Call original handler if provided
 				if (this.visualizationOptions.onNodeExecutionStart) {
-					this.visualizationOptions.onNodeExecutionStart(nodeId, data);
+					this.visualizationOptions.onNodeExecutionStart(nodeId);
 				}
 			},
 
-			onNodeExecutionProgress: (nodeId, progress, data) => {
-				// Emit visualization event
-				this.dispatchVisualizationEvent({
-					type: "node_execution_progress",
-					nodeId,
-					progress,
-					data,
-				});
-
-				// Call original handler if provided
-				if (this.visualizationOptions.onNodeExecutionProgress) {
-					this.visualizationOptions.onNodeExecutionProgress(nodeId, progress, data);
-				}
-			},
-
-			onNodeExecutionComplete: (nodeId, result) => {
+			onNodeExecutionComplete: (nodeId: string, result: any) => {
 				// Emit visualization event
 				this.dispatchVisualizationEvent({
 					type: "node_execution_complete",
@@ -186,8 +183,7 @@ export class EnhancedWorkflowExecutor {
 					this.visualizationOptions.onNodeExecutionComplete(nodeId, result);
 				}
 			},
-
-			onNodeExecutionError: (nodeId, error) => {
+			onNodeExecutionError: (nodeId: string, error: any) => {
 				// Emit visualization event
 				this.dispatchVisualizationEvent({
 					type: "node_execution_error",

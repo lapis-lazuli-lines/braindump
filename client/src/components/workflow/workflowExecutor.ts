@@ -1,7 +1,6 @@
 // src/components/workflow/workflowExecutor.ts
 import { Node, Edge } from "reactflow";
 import { updateNodesWithConnections } from "./registry/connectionValidator";
-import { nodeTypeRegistry, DataType } from "./registry/nodeRegistry";
 
 // Mock API clients - replace with your actual API imports
 // import { contentApi, imageApi } from "@/api/apiClient";
@@ -92,6 +91,7 @@ export class WorkflowExecutor {
 	private onNodeExecutionStart?: (nodeId: string) => void;
 	private onNodeExecutionComplete?: (nodeId: string, result: any) => void;
 	private onNodeExecutionError?: (nodeId: string, error: any) => void;
+	onNodeExecutionProgress?: (nodeId: string, progress: number, data?: any) => void;
 
 	constructor(
 		nodes: Node[],
@@ -311,7 +311,6 @@ export class WorkflowExecutor {
 
 			// Transform data based on source and target types
 			const sourceNodeType = sourceNode.type || "";
-			const targetNodeType = node.type || "";
 
 			// Add to inputs collection, grouped by handle
 			if (!inputs[targetHandle]) {

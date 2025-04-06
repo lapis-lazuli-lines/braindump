@@ -17,6 +17,11 @@ interface WorkflowState {
 	saveWorkflow: (name: string) => any;
 	loadWorkflow: (workflowId: string) => boolean;
 	getSavedWorkflows: () => any[];
+	executionState?: {
+		isExecuting: any;
+		currentNodeId?: string;
+		executedNodes: Record<string, { status: string }>;
+	};
 }
 
 // Initial workflow with empty nodes/edges

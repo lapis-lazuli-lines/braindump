@@ -23,7 +23,13 @@ const NodeDataPreview: React.FC<NodeDataPreviewProps> = ({ nodeId, position = "r
 	const executionState = useWorkflowStore((state) => state.executionState);
 
 	// Get inputs and outputs data
-	const nodeExecutionData = executionState?.executedNodes[nodeId];
+	interface NodeExecutionData {
+		status: string;
+		inputs?: Record<string, any>;
+		outputs?: Record<string, any>;
+	}
+
+	const nodeExecutionData = executionState?.executedNodes[nodeId] as NodeExecutionData;
 	const inputsData = nodeExecutionData?.inputs || {};
 	const outputsData = nodeExecutionData?.outputs || {};
 
@@ -103,7 +109,7 @@ const NodeDataPreview: React.FC<NodeDataPreviewProps> = ({ nodeId, position = "r
 	if (!hasInputData && !hasOutputData) return null;
 
 	// Determine which tabs to show
-	const tabs = [];
+	const tabs: string[] = [];
 	if (showInputs && hasInputData) tabs.push("inputs");
 	if (showOutputs && hasOutputData) tabs.push("outputs");
 

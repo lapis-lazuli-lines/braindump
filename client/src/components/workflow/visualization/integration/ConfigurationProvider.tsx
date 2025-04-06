@@ -1,6 +1,6 @@
 // src/components/workflow/visualization/integration/ConfigurationProvider.tsx
 import React, { createContext, useContext, useEffect, useCallback, useState } from "react";
-import { useVisualizationIntegration, VisualizationConfig } from "./VisualizationIntegrationProvider";
+import { useVisualizationIntegration, VisualizationConfig } from "./VisualizationIntegrationProvide";
 
 // Configuration category interface
 interface ConfigCategory {
@@ -407,7 +407,7 @@ export const ConfigurationSetting: React.FC<{
 			return (
 				<div className="config-setting config-setting-select">
 					<label className="config-setting-label">{setting.label}</label>
-					<select value={value as string} onChange={(e) => updateSetting(settingId, e.target.value)}>
+					<select value={value as string} onChange={(e) => updateSetting(settingId, e.target.value as "low" | "medium" | "high" | "small" | "large")}>
 						{setting.options?.map((option) => (
 							<option key={option.value} value={option.value}>
 								{option.label}

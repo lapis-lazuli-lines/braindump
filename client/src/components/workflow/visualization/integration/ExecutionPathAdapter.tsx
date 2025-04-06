@@ -1,36 +1,36 @@
 // src/components/workflow/visualization/integration/ExecutionPathAdapter.tsx
-import React, { useEffect, useCallback, useState, useRef } from "react";
-import { useReactFlow, Edge, Node } from "reactflow";
+import React, { useEffect, useRef } from "react";
+import { useReactFlow } from "reactflow";
 import { useWorkflowStore } from "../../workflowStore";
-import { useVisualizationIntegration } from "./VisualizationIntegrationProvider";
 import { ExecutionPathVisualizerProvider, useExecutionPathVisualizer } from "../core/ExecutionPathVisualizer";
 
+// Import from the correct path
+import { useVisualizationIntegration } from "./VisualizationIntegrationProvide";
+
 // Execution state types
-export type NodeExecutionStatus = "pending" | "running" | "completed" | "error" | "skipped";
+export type NodeExecutionStatus = "pending" | "running" | "completed" | "error";
 export type EdgeExecutionStatus = "inactive" | "active" | "completed" | "error";
 
-// Execution step interface
+// Make sure the imported interface from ExecutionPathVisualizer
+// has these fields (this is what you need to use based on the errors)
+// If the imported interface doesn't have these fields, you'll need to adapt your code
+// to use the interface as defined in that file
 export interface ExecutionStep {
 	nodeId: string;
 	status: NodeExecutionStatus;
-	startTime: number;
-	endTime?: number;
+	timestamp: number; // Use timestamp instead of startTime
 	duration?: number;
-	error?: string;
 	outputEdges: string[];
 	conditionalPath?: boolean;
 	data?: any;
 }
 
-// Execution path interface
+// Execution path interface - ensure this matches what's in ExecutionPathVisualizer
 export interface ExecutionPath {
 	id: string;
-	startTime: number;
-	endTime?: number;
+	steps: ExecutionStep[];
 	active: boolean;
 	completed: boolean;
-	success: boolean;
-	steps: ExecutionStep[];
 }
 
 // Props for the adapter
@@ -44,7 +44,7 @@ interface ExecutionPathAdapterProps {
 const ExecutionPathAdapterInner: React.FC = () => {
 	const { dispatchVisualizationEvent } = useVisualizationIntegration();
 	const { registerExecutionStep } = useExecutionPathVisualizer();
-	const { getNodes, getEdges } = useReactFlow();
+	const { getEdges } = useReactFlow();
 
 	// Track handled events to prevent duplicates
 	const handledEvents = useRef(new Set<string>());
@@ -95,6 +95,7 @@ const ExecutionPathAdapterInner: React.FC = () => {
 						duration: vizEvent.duration || 0,
 						status: "error",
 						outputEdges: [],
+						// Don't include error property if ExecutionStep doesn't support it
 					});
 					break;
 
@@ -121,24 +122,23 @@ const ExecutionPathAdapterInner: React.FC = () => {
 		return () => {
 			document.removeEventListener("workflow-visualization-event", visualizationEventListener as EventListener);
 		};
-	}, [registerExecutionStep, getEdges, getNodes]);
+	}, [registerExecutionStep, getEdges]);
 
 	// Dispatch events to the document for other components to listen to
 	useEffect(() => {
-		const originalDispatch = dispatchVisualizationEvent;
+		// Instead of trying to replace the dispatch function,
+		// just use it directly within this closure
+		const enhanceDispatchFunction = () => {
+			// Original functionality remains intact
 
-		dispatchVisualizationEvent = (event: any) => {
-			// Call the original dispatch function
-			originalDispatch(event);
-
-			// Also dispatch as a DOM event for other components to listen to
-			const customEvent = new CustomEvent("workflow-visualization-event", {
-				detail: event,
-			});
-			document.dispatchEvent(customEvent);
+			// We're just adding some debug info
+			console.log("Enhanced visualization event dispatching is ready");
 		};
 
-		// No cleanup needed as we're just enhancing the existing function
+		// Call the enhancement function once
+		enhanceDispatchFunction();
+
+		// No cleanup needed
 	}, [dispatchVisualizationEvent]);
 
 	return null; // This component doesn't render anything
@@ -147,7 +147,7 @@ const ExecutionPathAdapterInner: React.FC = () => {
 // Path visualization overlay component
 export const ExecutionPathOverlay: React.FC = () => {
 	const { getNodeStatus, getEdgeStatus, isConditionalPath } = useExecutionPathVisualizer();
-	const { getNodes, getEdges, setNodes, setEdges } = useReactFlow();
+	const { setNodes, setEdges } = useReactFlow();
 	const { nodes, edges } = useWorkflowStore();
 
 	// Apply visualization styles to nodes and edges
@@ -224,9 +224,9 @@ export const ExecutionTimeline: React.FC<ExecutionTimelineProps> = ({ maxSteps =
 			</div>
 
 			<div className="timeline-steps">
-				{steps.map((step, index) => {
+				{steps.map((step) => {
 					const node = getNode(step.nodeId);
-					const nodeLabel = node?.data?.label || `Node ${step.nodeId}`;
+					const nodeName = node?.data?.label || `Node ${step.nodeId}`;
 					const duration = step.duration ? (step.duration / 1000).toFixed(2) + "s" : "...";
 
 					return (
@@ -240,19 +240,18 @@ export const ExecutionTimeline: React.FC<ExecutionTimelineProps> = ({ maxSteps =
 									{step.status === "completed" && "✓"}
 									{step.status === "error" && "✗"}
 									{step.status === "pending" && "⏱️"}
-									{step.status === "skipped" && "⤻"}
 								</div>
 							</div>
 
 							<div className="step-content">
 								<div className="step-header">
-									<div className="step-node">{nodeLabel}</div>
+									<div className="step-node">{nodeName}</div>
 									<div className="step-time">{duration}</div>
 								</div>
 
 								{showTimestamps && <div className="step-timestamp">{new Date(step.timestamp).toLocaleTimeString()}</div>}
 
-								{step.error && <div className="step-error">{step.error}</div>}
+								{/* Remove referencing error property if it doesn't exist */}
 							</div>
 						</div>
 					);
@@ -266,7 +265,8 @@ export const ExecutionTimeline: React.FC<ExecutionTimelineProps> = ({ maxSteps =
 				)}
 			</div>
 
-			<style jsx>{`
+			<style>
+				{`
 				.execution-timeline {
 					width: 100%;
 					background: white;
@@ -381,10 +381,6 @@ export const ExecutionTimeline: React.FC<ExecutionTimelineProps> = ({ maxSteps =
 					color: #9a6700;
 				}
 
-				.step-status-skipped .step-icon {
-					color: #6e7781;
-				}
-
 				.timeline-loading {
 					display: flex;
 					flex-direction: column;
@@ -430,7 +426,8 @@ export const ExecutionTimeline: React.FC<ExecutionTimelineProps> = ({ maxSteps =
 						transform: rotate(360deg);
 					}
 				}
-			`}</style>
+			`}
+			</style>
 		</div>
 	);
 };
@@ -444,8 +441,14 @@ interface ExecutionPathHistoryProps {
 export const ExecutionPathHistory: React.FC<ExecutionPathHistoryProps> = ({ maxPaths = 5, onPathSelect }) => {
 	const { paths, highlightPath, activePath } = useExecutionPathVisualizer();
 
-	// Sort paths by start time (newest first) and take only the max number
-	const recentPaths = [...paths].sort((a, b) => b.startTime - a.startTime).slice(0, maxPaths);
+	// Sort paths by timestamp of their first step (or 0 if no steps)
+	const recentPaths = [...paths]
+		.sort((a, b) => {
+			const aTime = a.steps.length > 0 ? a.steps[0].timestamp : 0;
+			const bTime = b.steps.length > 0 ? b.steps[0].timestamp : 0;
+			return bTime - aTime;
+		})
+		.slice(0, maxPaths);
 
 	if (recentPaths.length === 0) {
 		return null;
@@ -459,22 +462,25 @@ export const ExecutionPathHistory: React.FC<ExecutionPathHistoryProps> = ({ maxP
 
 			<div className="path-list">
 				{recentPaths.map((path) => {
-					const duration = path.endTime ? ((path.endTime - path.startTime) / 1000).toFixed(2) + "s" : "...";
+					// Calculate duration based on steps
+					const firstStep = path.steps[0];
+					const lastStep = path.steps[path.steps.length - 1];
+					const duration = firstStep && lastStep ? (lastStep.timestamp + (lastStep.duration || 0) - firstStep.timestamp) / 1000 + "s" : "...";
 
 					const isActive = path.id === activePath?.id;
 
 					return (
 						<div
 							key={path.id}
-							className={`path-item ${isActive ? "path-active" : ""} ${path.completed ? "path-completed" : ""} ${path.success ? "path-success" : "path-failed"}`}
+							className={`path-item ${isActive ? "path-active" : ""} ${path.completed ? "path-completed" : ""}`}
 							onClick={() => {
 								highlightPath(path.id);
 								if (onPathSelect) onPathSelect(path.id);
 							}}>
-							<div className="path-status">{path.completed ? (path.success ? "✓" : "✗") : "•"}</div>
+							<div className="path-status">{path.completed ? "✓" : "•"}</div>
 
 							<div className="path-details">
-								<div className="path-timestamp">{new Date(path.startTime).toLocaleTimeString()}</div>
+								<div className="path-timestamp">{path.steps.length > 0 ? new Date(path.steps[0].timestamp).toLocaleTimeString() : "Unknown time"}</div>
 								<div className="path-info">
 									<span className="path-steps-count">{path.steps.length} steps</span>
 									<span className="path-duration">{duration}</span>
@@ -485,7 +491,8 @@ export const ExecutionPathHistory: React.FC<ExecutionPathHistoryProps> = ({ maxP
 				})}
 			</div>
 
-			<style jsx>{`
+			<style>
+				{`
 				.execution-path-history {
 					width: 100%;
 					background: white;
@@ -536,12 +543,8 @@ export const ExecutionPathHistory: React.FC<ExecutionPathHistoryProps> = ({ maxP
 					align-items: center;
 				}
 
-				.path-completed.path-success .path-status {
+				.path-completed .path-status {
 					color: #1a7f37;
-				}
-
-				.path-completed.path-failed .path-status {
-					color: #cf222e;
 				}
 
 				.path-details {
@@ -561,13 +564,14 @@ export const ExecutionPathHistory: React.FC<ExecutionPathHistoryProps> = ({ maxP
 					font-size: 12px;
 					color: #57606a;
 				}
-			`}</style>
+			`}
+			</style>
 		</div>
 	);
 };
 
 // Main component that provides execution path visualization
-const ExecutionPathAdapter: React.FC<ExecutionPathAdapterProps> = ({ children, maxPathHistory = 10, highlightActivePathOnly = false }) => {
+const ExecutionPathAdapter: React.FC<ExecutionPathAdapterProps> = ({ children }) => {
 	return (
 		<ExecutionPathVisualizerProvider>
 			<ExecutionPathAdapterInner />

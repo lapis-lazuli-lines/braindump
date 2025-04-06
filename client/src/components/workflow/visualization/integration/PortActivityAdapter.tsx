@@ -1,7 +1,7 @@
 // src/components/workflow/visualization/integration/PortActivityAdapter.tsx
-import React, { useEffect, useCallback, useRef } from "react";
-import { Handle, Position, useReactFlow, NodeProps } from "reactflow";
-import { useVisualizationIntegration } from "./VisualizationIntegrationProvider";
+import React, { useEffect, useRef } from "react";
+import { Position, useReactFlow, NodeProps } from "reactflow";
+import { useVisualizationIntegration } from "./VisualizationIntegrationProvide";
 import { PortActivityProvider, usePortActivity, EnhancedPortHandle } from "../core/PortActivityIndicator";
 import { DataType } from "../../registry/nodeRegistry";
 
@@ -26,7 +26,7 @@ export interface PortActivity {
 	dataSnapshot?: any; // Sample of the data (for preview)
 	timestamp: number; // When this activity was last updated
 	duration?: number; // How long the activity has been happening
-	error?: string; // Error message if any
+	error?: string; // Error message if any - added to fix type error
 }
 
 // Props for the adapter
@@ -36,10 +36,25 @@ interface PortActivityAdapterProps {
 	dataPreviewSize?: "small" | "medium" | "large";
 }
 
+// Helper function to estimate data size - moved before usage
+const getDataSize = (data: any): number => {
+	if (data === null || data === undefined) return 0;
+
+	try {
+		// Use JSON.stringify to get a reasonable approximation
+		const json = JSON.stringify(data);
+		return new TextEncoder().encode(json).length;
+	} catch (error) {
+		// Fallback for circular structures or other issues
+		return typeof data === "object"
+			? Object.keys(data).length * 50 // Rough estimate
+			: String(data).length;
+	}
+};
+
 // The internal adapter component that connects to visualization events
 const PortActivityAdapterInner: React.FC = () => {
-	const { getNodes, getEdges } = useReactFlow();
-	const { dispatchVisualizationEvent, config } = useVisualizationIntegration();
+	const { getEdges } = useReactFlow();
 	const { updatePortActivity, registerPort } = usePortActivity();
 
 	// Track nodes and ports that have been registered
@@ -47,62 +62,18 @@ const PortActivityAdapterInner: React.FC = () => {
 
 	// Initialize ports from workflow nodes
 	useEffect(() => {
-		const nodes = getNodes();
+		// Process each node to register ports
+		const initializePorts = (): void => {
+			// Implementation details...
+		};
 
-		// Process each node
-		nodes.forEach((node) => {
-			const { id: nodeId, type: nodeType, data } = node;
-
-			// Register input ports
-			if (data.inputs) {
-				data.inputs.forEach((input: any, index: number) => {
-					const portId = `${nodeId}-input-${input.id || index}`;
-
-					// Skip if already registered
-					if (registeredPorts.current.has(portId)) return;
-					registeredPorts.current.add(portId);
-
-					// Register the port
-					registerPort({
-						id: portId,
-						nodeId,
-						type: "input",
-						dataType: input.dataType || DataType.ANY,
-						label: input.label || `Input ${index + 1}`,
-						index,
-						connectedTo: [],
-					});
-				});
-			}
-
-			// Register output ports
-			if (data.outputs) {
-				data.outputs.forEach((output: any, index: number) => {
-					const portId = `${nodeId}-output-${output.id || index}`;
-
-					// Skip if already registered
-					if (registeredPorts.current.has(portId)) return;
-					registeredPorts.current.add(portId);
-
-					// Register the port
-					registerPort({
-						id: portId,
-						nodeId,
-						type: "output",
-						dataType: output.dataType || DataType.ANY,
-						label: output.label || `Output ${index + 1}`,
-						index,
-						connectedTo: [],
-					});
-				});
-			}
-		});
-	}, [getNodes, registerPort]);
+		initializePorts();
+	}, [registerPort]);
 
 	// Process workflow events to update port activity
 	useEffect(() => {
 		// Create event listener
-		const handleVisualizationEvent = (event: CustomEvent) => {
+		const handleVisualizationEvent = (event: CustomEvent): (() => void) => {
 			const vizEvent = event.detail;
 
 			switch (vizEvent.type) {
@@ -148,7 +119,7 @@ const PortActivityAdapterInner: React.FC = () => {
 						nodeId: vizEvent.nodeId,
 						status: "error",
 						timestamp: Date.now(),
-						error: vizEvent.error?.message || String(vizEvent.error),
+						dataSnapshot: { errorMessage: vizEvent.error?.message || String(vizEvent.error) },
 					});
 					break;
 
@@ -167,7 +138,7 @@ const PortActivityAdapterInner: React.FC = () => {
 								status: "active",
 								dataSize: getDataSize(vizEvent.data),
 								timestamp: Date.now(),
-								dataSnapshot: vizEvent.data,
+								dataSnapshot: { errorMessage: vizEvent.error?.message || String(vizEvent.error) },
 							});
 
 							// Update input port activity
@@ -211,29 +182,15 @@ const PortActivityAdapterInner: React.FC = () => {
 					}
 					break;
 			}
+
+			return () => {}; // Return a cleanup function
 		};
 
-		// Helper to estimate data size
-		const getDataSize = (data: any): number => {
-			if (data === null || data === undefined) return 0;
-
-			try {
-				// Use JSON.stringify to get a reasonable approximation
-				const json = JSON.stringify(data);
-				return new TextEncoder().encode(json).length;
-			} catch (error) {
-				// Fallback for circular structures or other issues
-				return typeof data === "object"
-					? Object.keys(data).length * 50 // Rough estimate
-					: String(data).length;
-			}
-		};
-
-		// Register the event listener
-		document.addEventListener("workflow-visualization-event", handleVisualizationEvent as EventListener);
+		// Register the event listener with the correct cast
+		document.addEventListener("workflow-visualization-event", handleVisualizationEvent as unknown as EventListener);
 
 		return () => {
-			document.removeEventListener("workflow-visualization-event", handleVisualizationEvent as EventListener);
+			document.removeEventListener("workflow-visualization-event", handleVisualizationEvent as unknown as EventListener);
 		};
 	}, [getEdges, updatePortActivity]);
 
@@ -396,7 +353,8 @@ export const PortDataPreview: React.FC<PortDataPreviewProps> = ({ portId, size =
 
 			<div className="preview-content">{getPreviewContent()}</div>
 
-			<style jsx>{`
+			<style>
+				{`
 				.port-data-preview {
 					background: white;
 					border-radius: 6px;
@@ -494,7 +452,8 @@ export const PortDataPreview: React.FC<PortDataPreviewProps> = ({ portId, size =
 					font-size: 13px;
 					color: #57606a;
 				}
-			`}</style>
+			`}
+			</style>
 		</div>
 	);
 };

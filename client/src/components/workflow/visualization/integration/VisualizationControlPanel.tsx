@@ -214,7 +214,7 @@ const VisualizationControlPanel: React.FC<VisualizationControlPanelProps> = ({
 				</div>
 			</div>
 
-			<style jsx>{`
+			<style>{`
 				.visualization-control-panel {
 					width: 320px;
 					background: white;

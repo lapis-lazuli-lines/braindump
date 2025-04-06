@@ -23,11 +23,9 @@ const AnimatedEdge: React.FC<EdgeProps> = ({
 	sourceHandleId,
 	targetHandleId,
 	style = {},
-	data,
 }) => {
 	const { getNode } = useReactFlow();
 	const sourceNode = getNode(source);
-	const targetNode = getNode(target);
 
 	const [isHovered, setIsHovered] = useState(false);
 	const [infoPosition, setInfoPosition] = useState({ x: 0, y: 0 });
@@ -36,7 +34,6 @@ const AnimatedEdge: React.FC<EdgeProps> = ({
 
 	// Get execution state to determine if edge is active
 	const executionState = useWorkflowStore((state) => state.executionState);
-	const edges = useWorkflowStore((state) => state.edges);
 	const edgeRef = useRef<SVGGElement>(null);
 
 	// Check if this edge is active in the current workflow execution
@@ -158,7 +155,6 @@ const AnimatedEdge: React.FC<EdgeProps> = ({
 	});
 
 	// Calculate the middle of the path for tooltip positioning
-	const pathMidPoint = getPathMidpoint(edgePath);
 
 	// Handle hover
 	const handleMouseEnter = (e: React.MouseEvent) => {
@@ -177,7 +173,7 @@ const AnimatedEdge: React.FC<EdgeProps> = ({
 	};
 
 	// Get edge data information
-	const edgeData = getEdgeData(source, target, sourceHandleId, targetHandleId);
+	const edgeData = getEdgeData(source, target, sourceHandleId ?? undefined, targetHandleId ?? undefined);
 
 	return (
 		<g
@@ -441,7 +437,7 @@ function getNodeTypeColor(nodeType: string): string {
 }
 
 // Helper function to get output data type from node type and handle ID
-function getOutputDataType(nodeType: string, handleId: string): string {
+function getOutputDataType(nodeType: string, _handleId: string): string {
 	switch (nodeType) {
 		case "ideaNode":
 			return DataType.IDEA;

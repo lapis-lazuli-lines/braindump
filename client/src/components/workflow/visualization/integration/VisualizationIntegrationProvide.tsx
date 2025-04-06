@@ -1,9 +1,8 @@
 // src/components/workflow/visualization/integration/VisualizationIntegrationProvider.tsx
 import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
-import { useReactFlow, Edge, Node } from "reactflow";
 import { useWorkflowStore } from "../../workflowStore";
 import { useDataFlowVisualization } from "../DataFlowVisualizationContext";
-import { PerformanceSettings } from "../core/PerformanceOptimizer";
+import { DataType } from "../../registry/nodeRegistry";
 
 // Define the visualization configuration settings
 export interface VisualizationConfig {
@@ -167,11 +166,10 @@ const configPresets = {
 export const VisualizationIntegrationProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 	const [config, setConfig] = useState<VisualizationConfig>(defaultConfig);
 	const [extendedNodeStates, setExtendedNodeStates] = useState<Record<string, ExtendedNodeState>>({});
-	const [edgeDataCache, setEdgeDataCache] = useState<Record<string, any>>({});
+	const [_edgeDataCache, setEdgeDataCache] = useState<Record<string, any>>({});
 	const [isInitialized, setIsInitialized] = useState(false);
 
 	// Get react-flow instance
-	const { getNodes, getEdges } = useReactFlow();
 
 	// Get workflow store and data flow context
 	const { nodes, edges } = useWorkflowStore();
@@ -302,7 +300,7 @@ export const VisualizationIntegrationProvider: React.FC<{ children: React.ReactN
 						nodeOutgoingEdges.forEach((edge) => {
 							// This is simplified - you'll need to determine the data type
 							// based on your system's conventions
-							const dataType = edge.sourceHandle || "default";
+							const dataType = (edge.sourceHandle || "default") as DataType;
 							dataFlowVisualization.activateEdge(edge.id, dataType, event.result);
 
 							// Schedule deactivation
@@ -394,7 +392,7 @@ export const VisualizationIntegrationProvider: React.FC<{ children: React.ReactN
 						const edge = edges.find((e) => e.id === event.edgeId);
 						if (edge) {
 							const dataType = edge.sourceHandle || "default";
-							dataFlowVisualization.activateEdge(event.edgeId, dataType, event.data);
+							dataFlowVisualization.activateEdge(event.edgeId, dataType as DataType, event.data);
 						}
 					}
 					break;

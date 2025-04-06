@@ -1,7 +1,7 @@
 // src/components/workflow/visualization/integration/PerformanceManager.tsx
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import { useReactFlow } from "reactflow";
-import { useVisualizationIntegration } from "./VisualizationIntegrationProvider";
+import { useVisualizationIntegration } from "./VisualizationIntegrationProvide";
 import { PerformanceOptimizerProvider, usePerformanceOptimizer } from "../core/PerformanceOptimizer";
 
 // Performance metrics interface

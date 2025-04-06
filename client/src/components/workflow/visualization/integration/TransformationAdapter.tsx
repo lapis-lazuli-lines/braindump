@@ -1,7 +1,7 @@
 // src/components/workflow/visualization/integration/TransformationAdapter.tsx
-import React, { useEffect, useCallback, useRef, useState } from "react";
-import { useReactFlow, Edge } from "reactflow";
-import { useVisualizationIntegration } from "./VisualizationIntegrationProvider";
+import React, { useEffect, useRef } from "react";
+import { useReactFlow } from "reactflow";
+import { useVisualizationIntegration } from "./VisualizationIntegrationProvide";
 import { TransformationVisualizerProvider, useTransformationVisualizer, withTransformationVisualization } from "../core/TransformationVisualizer";
 
 // Data snapshot interface
@@ -43,7 +43,7 @@ interface TransformationAdapterProps {
 
 // The internal adapter component
 const TransformationAdapterInner: React.FC = () => {
-	const { getEdges, getNodes } = useReactFlow();
+	const { getEdges } = useReactFlow();
 	const { registerSnapshot } = useTransformationVisualizer();
 	const { dispatchVisualizationEvent } = useVisualizationIntegration();
 
@@ -239,7 +239,6 @@ interface TransformationPreviewProps {
 	height?: number;
 	showDiff?: boolean;
 }
-
 export const TransformationPreview: React.FC<TransformationPreviewProps> = ({ edgeId, width = 400, height = 300, showDiff = true }) => {
 	const { getTransformation } = useTransformationVisualizer();
 	const transformation = getTransformation(edgeId);
@@ -255,6 +254,7 @@ export const TransformationPreview: React.FC<TransformationPreviewProps> = ({ ed
 
 	// Calculate changes
 	const { sourceSnapshot, targetSnapshot, changes } = transformation;
+	const safeChanges = changes || { additions: [], modifications: [], deletions: [] };
 
 	return (
 		<div className="transformation-preview" style={{ width, maxHeight: height }}>
@@ -262,15 +262,15 @@ export const TransformationPreview: React.FC<TransformationPreviewProps> = ({ ed
 				<div className="preview-title">Data Transformation</div>
 				<div className="preview-stats">
 					<div className="stat-item">
-						<span className="stat-value">{changes.additions.length}</span>
+						<span className="stat-value">{safeChanges.additions.length}</span>
 						<span className="stat-label">Added</span>
 					</div>
 					<div className="stat-item">
-						<span className="stat-value">{changes.modifications.length}</span>
+						<span className="stat-value">{safeChanges.modifications.length}</span>
 						<span className="stat-label">Modified</span>
 					</div>
 					<div className="stat-item">
-						<span className="stat-value">{changes.deletions.length}</span>
+						<span className="stat-value">{safeChanges.deletions.length}</span>
 						<span className="stat-label">Removed</span>
 					</div>
 				</div>
@@ -279,7 +279,7 @@ export const TransformationPreview: React.FC<TransformationPreviewProps> = ({ ed
 			<div className="preview-content">
 				{showDiff ? (
 					<div className="diff-view">
-						<pre className="diff-code">{formatDiff(sourceSnapshot.data, targetSnapshot.data, changes)}</pre>
+						<pre className="diff-code">{formatDiff(sourceSnapshot.data, targetSnapshot.data, safeChanges)}</pre>
 					</div>
 				) : (
 					<div className="split-view">
@@ -295,7 +295,7 @@ export const TransformationPreview: React.FC<TransformationPreviewProps> = ({ ed
 				)}
 			</div>
 
-			<style jsx>{`
+			<style>{`
 				.transformation-preview {
 					background: white;
 					border-radius: 6px;
@@ -474,7 +474,7 @@ function formatDiff(source: any, target: any, changes: { additions: string[]; mo
 }
 
 // Main adapter component
-const TransformationAdapter: React.FC<TransformationAdapterProps> = ({ children, enabled = true, maxTransformationHistory = 20 }) => {
+const TransformationAdapter: React.FC<TransformationAdapterProps> = ({ children, enabled = true }) => {
 	if (!enabled) return <>{children}</>;
 
 	return (

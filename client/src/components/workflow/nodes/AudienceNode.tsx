@@ -1,8 +1,12 @@
-// client/src/components/workflow/nodes/AudienceNode.tsx
-import React, { useState, useEffect } from "react";
-import { NodeProps } from "reactflow";
+// client/src/components/workflow/nodes/EnhancedAudienceNode.tsx
+import React, { useState, useEffect, useCallback, useMemo, useReducer } from "react";
+import { NodeProps, Handle, Position } from "reactflow";
 import BaseNode from "./BaseNode";
 import { useWorkflowStore } from "../workflowStore";
+import { usePortActivity, EnhancedPortHandle } from "../visualization/core/PortActivityIndicator";
+import { useTransformationVisualizer, useDataSnapshotRegistration } from "../visualization/core/TransformationVisualizer";
+import { usePerformanceOptimizer, useViewportOptimization } from "../visualization/core/PerformanceOptimizer";
+import { useExecutionPathVisualizer } from "../visualization/core/ExecutionPathVisualizer";
 
 // Platform-specific visibility options
 interface VisibilitySettings {
@@ -46,13 +50,154 @@ interface AudienceData {
 	customSettings: CustomSettings;
 }
 
-const AudienceNode: React.FC<NodeProps> = ({ id, data, selected }) => {
+// Define action types for reducer
+type AudienceAction =
+	| { type: "SET_AUDIENCE_DATA"; payload: AudienceData }
+	| { type: "UPDATE_AGE_RANGE"; payload: { min: number; max: number } }
+	| { type: "TOGGLE_GENDER"; payload: string }
+	| { type: "ADD_INTEREST"; payload: string }
+	| { type: "REMOVE_INTEREST"; payload: string }
+	| { type: "ADD_LOCATION"; payload: { type: string; value: string } }
+	| { type: "REMOVE_LOCATION"; payload: { type: string; value: string } }
+	| { type: "UPDATE_LANGUAGES"; payload: string[] }
+	| { type: "TOGGLE_DEVICE_TYPE"; payload: string }
+	| { type: "SET_PLATFORM"; payload: string }
+	| { type: "SET_VISIBILITY"; payload: { platform: string; value: string } }
+	| { type: "UPDATE_CUSTOM_SETTING"; payload: { platform: string; key: string; value: any } }
+	| { type: "ADD_CUSTOM_LIST_ITEM"; payload: { platform: string; listType: string; item: string } }
+	| { type: "REMOVE_CUSTOM_LIST_ITEM"; payload: { platform: string; listType: string; item: string } };
+
+// Reducer function for audience data
+const audienceReducer = (state: AudienceData, action: AudienceAction): AudienceData => {
+	switch (action.type) {
+		case "SET_AUDIENCE_DATA":
+			return action.payload;
+
+		case "UPDATE_AGE_RANGE":
+			return {
+				...state,
+				ageRange: action.payload,
+			};
+
+		case "TOGGLE_GENDER":
+			return {
+				...state,
+				gender: state.gender.includes(action.payload) ? state.gender.filter((g) => g !== action.payload) : [...state.gender, action.payload],
+			};
+
+		case "ADD_INTEREST":
+			return {
+				...state,
+				interests: [...state.interests, action.payload],
+			};
+
+		case "REMOVE_INTEREST":
+			return {
+				...state,
+				interests: state.interests.filter((i) => i !== action.payload),
+			};
+
+		case "ADD_LOCATION":
+			return {
+				...state,
+				locations: [...state.locations, action.payload],
+			};
+
+		case "REMOVE_LOCATION":
+			return {
+				...state,
+				locations: state.locations.filter((l) => !(l.type === action.payload.type && l.value === action.payload.value)),
+			};
+
+		case "UPDATE_LANGUAGES":
+			return {
+				...state,
+				languages: action.payload,
+			};
+
+		case "TOGGLE_DEVICE_TYPE":
+			return {
+				...state,
+				deviceTypes: state.deviceTypes.includes(action.payload) ? state.deviceTypes.filter((d) => d !== action.payload) : [...state.deviceTypes, action.payload],
+			};
+
+		case "SET_PLATFORM":
+			return {
+				...state,
+				detectedPlatform: action.payload,
+			};
+
+		case "SET_VISIBILITY":
+			return {
+				...state,
+				visibilitySettings: {
+					...state.visibilitySettings,
+					[action.payload.platform]: action.payload.value,
+				},
+			};
+
+		case "UPDATE_CUSTOM_SETTING":
+			const { platform, key, value } = action.payload;
+			return {
+				...state,
+				customSettings: {
+					...state.customSettings,
+					[platform]: {
+						...state.customSettings[platform],
+						[key]: value,
+					},
+				},
+			};
+
+		case "ADD_CUSTOM_LIST_ITEM":
+			const { platform: p1, listType, item } = action.payload;
+			const platformSettings = state.customSettings[p1] || {};
+			const currentList = platformSettings[listType] || [];
+
+			return {
+				...state,
+				customSettings: {
+					...state.customSettings,
+					[p1]: {
+						...platformSettings,
+						[listType]: [...currentList, item],
+					},
+				},
+			};
+
+		case "REMOVE_CUSTOM_LIST_ITEM":
+			const { platform: p2, listType: lt, item: i } = action.payload;
+			const pSettings = state.customSettings[p2] || {};
+			const cList = pSettings[lt] || [];
+
+			return {
+				...state,
+				customSettings: {
+					...state.customSettings,
+					[p2]: {
+						...pSettings,
+						[lt]: cList.filter((listItem) => listItem !== i),
+					},
+				},
+			};
+
+		default:
+			return state;
+	}
+};
+
+// Enhanced Audience Node component
+const EnhancedAudienceNode: React.FC<NodeProps> = ({ id, data, selected }) => {
+	// Workflow store
 	const updateNodeData = useWorkflowStore((state) => state.updateNodeData);
 	const nodes = useWorkflowStore((state) => state.nodes);
 	const edges = useWorkflowStore((state) => state.edges);
 
-	// Initialize audience data with defaults or from existing data
-	const [audienceData, setAudienceData] = useState<AudienceData>({
+	// Performance optimization
+	const { settings: perfSettings } = usePerformanceOptimizer();
+
+	// Audience data reducer
+	const [audienceData, dispatch] = useReducer(audienceReducer, {
 		ageRange: data.ageRange || { min: 18, max: 65 },
 		gender: data.gender || [],
 		interests: data.interests || [],
@@ -68,13 +213,26 @@ const AudienceNode: React.FC<NodeProps> = ({ id, data, selected }) => {
 	// Tab state for UI organization
 	const [activeTab, setActiveTab] = useState<"demographics" | "interests" | "platform">("demographics");
 
-	// New interest input state
+	// Viewport optimization for rendering complex components
+	const { ref: viewportRef } = useViewportOptimization(`audience-node-${id}`, () => {
+		// This could be used for animations or visual effects
+	});
+
+	// Input/output data registration for data flow visualization
+	const inputPortId = `${id}-input`;
+	const outputPortId = `${id}-output`;
+	const { registerData: registerInputData } = useDataSnapshotRegistration(id, inputPortId);
+	const { registerData: registerOutputData } = useDataSnapshotRegistration(id, outputPortId);
+
+	// Form state
 	const [newInterest, setNewInterest] = useState("");
-	// New location input state
 	const [newLocation, setNewLocation] = useState({
 		type: "country" as const,
 		value: "",
 	});
+
+	// Validation state
+	const [errors, setErrors] = useState<Record<string, string>>({});
 
 	// Detect connected platform node to adapt audience parameters
 	useEffect(() => {
@@ -82,7 +240,7 @@ const AudienceNode: React.FC<NodeProps> = ({ id, data, selected }) => {
 	}, [edges, nodes]);
 
 	// Function to detect connected platform node
-	const detectConnectedPlatform = () => {
+	const detectConnectedPlatform = useCallback(() => {
 		// Find outgoing edges from this node
 		const outgoingEdges = edges.filter((edge) => edge.source === id);
 
@@ -94,27 +252,38 @@ const AudienceNode: React.FC<NodeProps> = ({ id, data, selected }) => {
 
 				// Only update if platform changed
 				if (platform !== audienceData.detectedPlatform) {
-					setAudienceData((prev) => ({
-						...prev,
-						detectedPlatform: platform,
-					}));
+					dispatch({
+						type: "SET_PLATFORM",
+						payload: platform,
+					});
+
+					// Apply default visibility settings for the platform if not set
+					if (!audienceData.visibilitySettings[platform]) {
+						dispatch({
+							type: "SET_VISIBILITY",
+							payload: {
+								platform,
+								value: getDefaultVisibility(platform),
+							},
+						});
+					}
 
 					updateNodeData(id, {
+						...audienceData,
 						detectedPlatform: platform,
-						// Apply default visibility settings for the platform if not set
 						visibilitySettings: {
-							...prev.visibilitySettings,
-							[platform]: prev.visibilitySettings[platform] || getDefaultVisibility(platform),
+							...audienceData.visibilitySettings,
+							[platform]: audienceData.visibilitySettings[platform] || getDefaultVisibility(platform),
 						},
 					});
 				}
 				return; // Found a platform, no need to continue
 			}
 		}
-	};
+	}, [id, edges, nodes, audienceData, updateNodeData]);
 
 	// Get default visibility setting for a platform
-	const getDefaultVisibility = (platform: string): string => {
+	const getDefaultVisibility = useCallback((platform: string): string => {
 		switch (platform) {
 			case "facebook":
 				return "public";
@@ -129,169 +298,223 @@ const AudienceNode: React.FC<NodeProps> = ({ id, data, selected }) => {
 			default:
 				return "public";
 		}
-	};
+	}, []);
+
+	// Process and transform audience data for output
+	const processAudienceData = useCallback(() => {
+		// Create a processed version of audience data with metrics
+		const processed = {
+			...audienceData,
+			estimatedReach: getReachPercentage(audienceData.detectedPlatform || "", audienceData.visibilitySettings[audienceData.detectedPlatform || ""] || "public"),
+			processingTimestamp: Date.now(),
+		};
+
+		// Register the input data (raw) and output data (processed)
+		registerInputData(audienceData);
+		registerOutputData(processed);
+
+		return processed;
+	}, [audienceData, registerInputData, registerOutputData]);
+
+	// Save processed audience data to the workflow store
+	const saveAudienceData = useCallback(() => {
+		// Validate before saving
+		const validationErrors: Record<string, string> = {};
+
+		if (audienceData.interests.length === 0) {
+			validationErrors.interests = "Add at least one interest for better targeting";
+		}
+
+		if (audienceData.ageRange.min >= audienceData.ageRange.max) {
+			validationErrors.ageRange = "Maximum age must be greater than minimum age";
+		}
+
+		setErrors(validationErrors);
+
+		// Only save if no errors
+		if (Object.keys(validationErrors).length === 0) {
+			const processedData = processAudienceData();
+			updateNodeData(id, processedData);
+			setIsEditing(false);
+		}
+	}, [id, audienceData, processAudienceData, updateNodeData]);
 
 	// Start editing mode
-	const startEditing = () => {
+	const startEditing = useCallback(() => {
 		setIsEditing(true);
-	};
+	}, []);
 
 	// Cancel editing and reset to saved data
-	const cancelEditing = () => {
+	const cancelEditing = useCallback(() => {
 		setIsEditing(false);
-		setAudienceData({
-			ageRange: data.ageRange || { min: 18, max: 65 },
-			gender: data.gender || [],
-			interests: data.interests || [],
-			locations: data.locations || [],
-			languages: data.languages || [],
-			deviceTypes: data.deviceTypes || [],
-			visibilitySettings: data.visibilitySettings || {},
-			customSettings: data.customSettings || {},
-			detectedPlatform: data.detectedPlatform,
+		dispatch({
+			type: "SET_AUDIENCE_DATA",
+			payload: {
+				ageRange: data.ageRange || { min: 18, max: 65 },
+				gender: data.gender || [],
+				interests: data.interests || [],
+				locations: data.locations || [],
+				languages: data.languages || [],
+				deviceTypes: data.deviceTypes || [],
+				visibilitySettings: data.visibilitySettings || {},
+				customSettings: data.customSettings || {},
+				detectedPlatform: data.detectedPlatform,
+			},
 		});
 		setNewInterest("");
 		setNewLocation({ type: "country", value: "" });
-	};
-
-	// Save audience data
-	const saveAudienceData = () => {
-		updateNodeData(id, audienceData);
-		setIsEditing(false);
-	};
+		setErrors({});
+	}, [data]);
 
 	// Handle age range change
-	const handleAgeRangeChange = (min: number, max: number) => {
-		setAudienceData((prev) => ({
-			...prev,
-			ageRange: { min, max },
-		}));
-	};
+	const handleAgeRangeChange = useCallback((min: number, max: number) => {
+		dispatch({
+			type: "UPDATE_AGE_RANGE",
+			payload: { min, max },
+		});
+	}, []);
 
 	// Handle gender selection
-	const handleGenderChange = (gender: string) => {
-		setAudienceData((prev) => {
-			// Toggle selection
-			const updatedGenders = prev.gender.includes(gender) ? prev.gender.filter((g) => g !== gender) : [...prev.gender, gender];
-
-			return {
-				...prev,
-				gender: updatedGenders,
-			};
-		});
-	};
+	const handleGenderChange = useCallback((gender: string) => {
+		dispatch({ type: "TOGGLE_GENDER", payload: gender });
+	}, []);
 
 	// Add a new interest
-	const addInterest = () => {
+	const addInterest = useCallback(() => {
 		if (!newInterest.trim()) return;
 
-		setAudienceData((prev) => ({
-			...prev,
-			interests: [...prev.interests, newInterest.trim()],
-		}));
+		dispatch({
+			type: "ADD_INTEREST",
+			payload: newInterest.trim(),
+		});
 
 		setNewInterest("");
-	};
+	}, [newInterest]);
 
 	// Remove an interest
-	const removeInterest = (interest: string) => {
-		setAudienceData((prev) => ({
-			...prev,
-			interests: prev.interests.filter((i) => i !== interest),
-		}));
-	};
+	const removeInterest = useCallback((interest: string) => {
+		dispatch({
+			type: "REMOVE_INTEREST",
+			payload: interest,
+		});
+	}, []);
 
 	// Add a new location
-	const addLocation = () => {
+	const addLocation = useCallback(() => {
 		if (!newLocation.value.trim()) return;
 
-		setAudienceData((prev) => ({
-			...prev,
-			locations: [...prev.locations, { ...newLocation }],
-		}));
+		dispatch({
+			type: "ADD_LOCATION",
+			payload: { ...newLocation },
+		});
 
 		setNewLocation({ ...newLocation, value: "" });
-	};
+	}, [newLocation]);
 
 	// Remove a location
-	const removeLocation = (location: { type: string; value: string }) => {
-		setAudienceData((prev) => ({
-			...prev,
-			locations: prev.locations.filter((l) => !(l.type === location.type && l.value === location.value)),
-		}));
-	};
+	const removeLocation = useCallback((location: { type: string; value: string }) => {
+		dispatch({
+			type: "REMOVE_LOCATION",
+			payload: location,
+		});
+	}, []);
 
 	// Set platform visibility settings
-	const setVisibility = (platform: string, value: string) => {
-		setAudienceData((prev) => ({
-			...prev,
-			visibilitySettings: {
-				...prev.visibilitySettings,
-				[platform]: value,
-			},
-		}));
-	};
+	const setVisibility = useCallback((platform: string, value: string) => {
+		dispatch({
+			type: "SET_VISIBILITY",
+			payload: { platform, value },
+		});
+	}, []);
 
 	// Update custom settings
-	const updateCustomSettings = (platform: string, key: string, value: any) => {
-		setAudienceData((prev) => {
-			const platformSettings = prev.customSettings[platform] || {};
-
-			return {
-				...prev,
-				customSettings: {
-					...prev.customSettings,
-					[platform]: {
-						...platformSettings,
-						[key]: value,
-					},
-				},
-			};
+	const updateCustomSettings = useCallback((platform: string, key: string, value: any) => {
+		dispatch({
+			type: "UPDATE_CUSTOM_SETTING",
+			payload: { platform, key, value },
 		});
-	};
+	}, []);
 
 	// Add an item to a list in custom settings
-	const addToCustomList = (platform: string, listType: string, item: string) => {
+	const addToCustomList = useCallback((platform: string, listType: string, item: string) => {
 		if (!item.trim()) return;
 
-		setAudienceData((prev) => {
-			const platformSettings = prev.customSettings[platform] || {};
-			const currentList = platformSettings[listType] || [];
-
-			return {
-				...prev,
-				customSettings: {
-					...prev.customSettings,
-					[platform]: {
-						...platformSettings,
-						[listType]: [...currentList, item.trim()],
-					},
-				},
-			};
+		dispatch({
+			type: "ADD_CUSTOM_LIST_ITEM",
+			payload: { platform, listType, item: item.trim() },
 		});
-	};
+	}, []);
 
 	// Remove an item from a list in custom settings
-	const removeFromCustomList = (platform: string, listType: string, item: string) => {
-		setAudienceData((prev) => {
-			const platformSettings = prev.customSettings[platform] || {};
-			const currentList = platformSettings[listType] || [];
+	const removeFromCustomList = useCallback((platform: string, listType: string, item: string) => {
+		dispatch({
+			type: "REMOVE_CUSTOM_LIST_ITEM",
+			payload: { platform, listType, item },
+		});
+	}, []);
 
-			return {
-				...prev,
-				customSettings: {
-					...prev.customSettings,
-					[platform]: {
-						...platformSettings,
-						[listType]: currentList.filter((i) => i !== item),
-					},
+	// Helper function to estimate audience reach based on platform and visibility
+	const getReachPercentage = useCallback(
+		(platform: string, visibility: string): number => {
+			const basePercentages: Record<string, Record<string, number>> = {
+				facebook: {
+					public: 100,
+					friends: 60,
+					friendsOfFriends: 80,
+					onlyMe: 5,
+					custom: 40,
+				},
+				instagram: {
+					public: 100,
+					private: 50,
+				},
+				twitter: {
+					public: 100,
+					protected: 30,
+				},
+				linkedin: {
+					public: 100,
+					connections: 40,
+					connectionPlus: 70,
+				},
+				tiktok: {
+					public: 100,
+					followersOnly: 50,
+					private: 10,
 				},
 			};
-		});
-	};
 
-	// Render demographic settings tab
-	const renderDemographicsTab = () => {
+			// Get the base percentage for this platform and visibility
+			const platformPercentages = basePercentages[platform] || {};
+			const basePercentage = platformPercentages[visibility] || 100;
+
+			// Adjust based on other targeting parameters
+			let adjustedPercentage = basePercentage;
+
+			// Adjust for demographics
+			if (audienceData.ageRange.max - audienceData.ageRange.min < 20) {
+				adjustedPercentage *= 0.8; // Narrow age range reduces reach
+			}
+
+			if (audienceData.gender.length > 0 && !audienceData.gender.includes("All")) {
+				adjustedPercentage *= 0.5; // Gender targeting reduces reach
+			}
+
+			if (audienceData.locations.length > 0) {
+				adjustedPercentage *= 0.7; // Location targeting reduces reach
+			}
+
+			if (audienceData.interests.length > 0) {
+				adjustedPercentage *= 0.6; // Interest targeting reduces reach
+			}
+
+			return Math.min(100, Math.max(5, adjustedPercentage));
+		},
+		[audienceData]
+	);
+
+	// Memoized tab renderers to prevent unnecessary re-renders
+	const DemographicsTab = useMemo(() => {
 		return (
 			<div className="space-y-3">
 				{/* Age Range */}
@@ -321,6 +544,7 @@ const AudienceNode: React.FC<NodeProps> = ({ id, data, selected }) => {
 						/>
 						<span className="text-xs w-8 text-center">{audienceData.ageRange.max}</span>
 					</div>
+					{errors.ageRange && <p className="text-xs text-red-500 mt-1">{errors.ageRange}</p>}
 				</div>
 
 				{/* Gender */}
@@ -385,14 +609,16 @@ const AudienceNode: React.FC<NodeProps> = ({ id, data, selected }) => {
 				</div>
 			</div>
 		);
-	};
+	}, [audienceData.ageRange, audienceData.gender, audienceData.locations, newLocation, errors.ageRange, handleAgeRangeChange, handleGenderChange, addLocation, removeLocation]);
 
-	// Render interests tab
-	const renderInterestsTab = () => {
+	const InterestsTab = useMemo(() => {
 		return (
 			<div className="space-y-3">
 				<div>
-					<label className="block text-xs font-medium text-gray-700 mb-1">Interests</label>
+					<label className="block text-xs font-medium text-gray-700 mb-1">
+						Interests
+						{errors.interests && <span className="text-xs text-red-500 ml-2">{errors.interests}</span>}
+					</label>
 					<div className="flex space-x-1">
 						<input
 							type="text"
@@ -415,7 +641,7 @@ const AudienceNode: React.FC<NodeProps> = ({ id, data, selected }) => {
 					{/* Interest Tags */}
 					<div className="flex flex-wrap gap-1 mt-2">
 						{audienceData.interests.map((interest) => (
-							<div key={interest} className="bg-gray-100 text-gray-800 text-xs px-2 py-1 rounded-full flex items-center">
+							<div key={interest} className="bg-gray-100 text-gray-800 text-xs px-2 py-1 rounded-full flex items-center" title="Click to remove">
 								<span>{interest}</span>
 								<button onClick={() => removeInterest(interest)} className="ml-1 text-gray-500 hover:text-gray-700">
 									<svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -436,10 +662,10 @@ const AudienceNode: React.FC<NodeProps> = ({ id, data, selected }) => {
 						value={audienceData.languages}
 						onChange={(e) => {
 							const selectedOptions = Array.from(e.target.selectedOptions).map((option) => option.value);
-							setAudienceData((prev) => ({
-								...prev,
-								languages: selectedOptions,
-							}));
+							dispatch({
+								type: "UPDATE_LANGUAGES",
+								payload: selectedOptions,
+							});
 						}}>
 						<option value="en">English</option>
 						<option value="es">Spanish</option>
@@ -462,16 +688,7 @@ const AudienceNode: React.FC<NodeProps> = ({ id, data, selected }) => {
 						{["Mobile", "Desktop", "Tablet", "All"].map((device) => (
 							<button
 								key={device}
-								onClick={() => {
-									const deviceTypes = [...audienceData.deviceTypes];
-									const index = deviceTypes.indexOf(device);
-									if (index >= 0) {
-										deviceTypes.splice(index, 1);
-									} else {
-										deviceTypes.push(device);
-									}
-									setAudienceData((prev) => ({ ...prev, deviceTypes }));
-								}}
+								onClick={() => dispatch({ type: "TOGGLE_DEVICE_TYPE", payload: device })}
 								className={`px-2 py-1 text-xs rounded-md ${audienceData.deviceTypes.includes(device) ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-700"}`}>
 								{device}
 							</button>
@@ -480,10 +697,9 @@ const AudienceNode: React.FC<NodeProps> = ({ id, data, selected }) => {
 				</div>
 			</div>
 		);
-	};
+	}, [audienceData.interests, audienceData.languages, audienceData.deviceTypes, newInterest, errors.interests, addInterest, removeInterest]);
 
-	// Render platform-specific settings tab
-	const renderPlatformTab = () => {
+	const PlatformTab = useMemo(() => {
 		const { detectedPlatform } = audienceData;
 
 		if (!detectedPlatform) {
@@ -499,6 +715,8 @@ const AudienceNode: React.FC<NodeProps> = ({ id, data, selected }) => {
 
 		// Get the current visibility setting for this platform
 		const visibility = audienceData.visibilitySettings[detectedPlatform] || getDefaultVisibility(detectedPlatform);
+
+		const reachPercentage = getReachPercentage(detectedPlatform, visibility);
 
 		return (
 			<div className="space-y-4">
@@ -745,79 +963,48 @@ const AudienceNode: React.FC<NodeProps> = ({ id, data, selected }) => {
 
 				{/* Visibility impact indicator */}
 				<div className="mt-3">
-					<label className="block text-xs font-medium text-gray-700 mb-1">Estimated Audience Reach</label>
+					<label className="block text-xs font-medium text-gray-700 mb-1">
+						Estimated Audience Reach
+						<span className="ml-1 text-blue-500 cursor-help" title="This is an estimate of how many people your content might reach based on your audience settings">
+							ⓘ
+						</span>
+					</label>
 					<div className="relative w-full h-4 bg-gray-200 rounded-full overflow-hidden">
 						<div
 							className="absolute top-0 left-0 h-full bg-gradient-to-r from-green-500 to-blue-500"
 							style={{
-								width: `${getReachPercentage(detectedPlatform, visibility)}%`,
+								width: `${reachPercentage}%`,
 							}}></div>
 					</div>
 					<div className="flex justify-between text-xs text-gray-500 mt-1">
 						<span>Narrow</span>
+						<span>{Math.round(reachPercentage)}%</span>
 						<span>Broad</span>
 					</div>
 				</div>
+
+				{/* Information panel about visibility impact */}
+				<div className="bg-yellow-50 rounded-md p-2 text-xs text-yellow-800">
+					<p className="font-medium mb-1">Audience Reach Analysis</p>
+					<p>
+						Your current settings will target approximately {Math.round(reachPercentage)}% of the potential audience on {detectedPlatform}.
+						{reachPercentage < 30 && " Consider broadening your targeting for better reach."}
+						{reachPercentage > 80 && " Consider narrowing your targeting for more engagement."}
+					</p>
+				</div>
 			</div>
 		);
-	};
-
-	// Helper function to estimate audience reach based on platform and visibility
-	const getReachPercentage = (platform: string, visibility: string): number => {
-		const basePercentages: Record<string, Record<string, number>> = {
-			facebook: {
-				public: 100,
-				friends: 60,
-				friendsOfFriends: 80,
-				onlyMe: 5,
-				custom: 40,
-			},
-			instagram: {
-				public: 100,
-				private: 50,
-			},
-			twitter: {
-				public: 100,
-				protected: 30,
-			},
-			linkedin: {
-				public: 100,
-				connections: 40,
-				connectionPlus: 70,
-			},
-			tiktok: {
-				public: 100,
-				followersOnly: 50,
-				private: 10,
-			},
-		};
-
-		// Get the base percentage for this platform and visibility
-		const platformPercentages = basePercentages[platform] || {};
-		const basePercentage = platformPercentages[visibility] || 100;
-
-		// Adjust based on other targeting parameters
-		let adjustedPercentage = basePercentage;
-
-		// Adjust for demographics
-		if (audienceData.ageRange.max - audienceData.ageRange.min < 20) {
-			adjustedPercentage *= 0.8; // Narrow age range reduces reach
-		}
-
-		if (audienceData.gender.length > 0 && !audienceData.gender.includes("All")) {
-			adjustedPercentage *= 0.5; // Gender targeting reduces reach
-		}
-
-		if (audienceData.locations.length > 0) {
-			adjustedPercentage *= 0.7; // Location targeting reduces reach
-		}
-
-		if (audienceData.interests.length > 0) {
-			adjustedPercentage *= 0.6; // Interest targeting reduces reach
-		}
-
-		return Math.min(100, Math.max(5, adjustedPercentage));
-	};
+	}, [
+		audienceData.detectedPlatform,
+		audienceData.visibilitySettings,
+		audienceData.customSettings,
+		getDefaultVisibility,
+		getReachPercentage,
+		setVisibility,
+		updateCustomSettings,
+		addToCustomList,
+		removeFromCustomList,
+	]);
 
 	// Render edit mode content
 	const renderEditContent = () => {
@@ -837,9 +1024,9 @@ const AudienceNode: React.FC<NodeProps> = ({ id, data, selected }) => {
 
 				{/* Tab content */}
 				<div>
-					{activeTab === "demographics" && renderDemographicsTab()}
-					{activeTab === "interests" && renderInterestsTab()}
-					{activeTab === "platform" && renderPlatformTab()}
+					{activeTab === "demographics" && DemographicsTab}
+					{activeTab === "interests" && InterestsTab}
+					{activeTab === "platform" && PlatformTab}
 				</div>
 
 				{/* Save/Cancel buttons */}
@@ -874,8 +1061,21 @@ const AudienceNode: React.FC<NodeProps> = ({ id, data, selected }) => {
 			);
 		}
 
+		// Calculate audience reach for display
+		const reachPercentage = audienceData.detectedPlatform
+			? getReachPercentage(audienceData.detectedPlatform, audienceData.visibilitySettings[audienceData.detectedPlatform] || "public")
+			: 0;
+
 		return (
 			<div className="space-y-2">
+				{/* Enhanced Indicator - Data Flow Visualization */}
+				<div className="bg-purple-50 rounded-md px-2 py-1 text-xs text-purple-800 mb-2 flex items-center">
+					<svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+						<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+					</svg>
+					<span>Enhanced with data flow visualization</span>
+				</div>
+
 				{/* Demographics summary */}
 				<div>
 					<div className="flex items-center text-xs font-medium text-gray-700 mb-1">
@@ -955,6 +1155,19 @@ const AudienceNode: React.FC<NodeProps> = ({ id, data, selected }) => {
 					</div>
 				)}
 
+				{/* Audience Reach Indicator */}
+				{audienceData.detectedPlatform && (
+					<div className="mt-1">
+						<div className="text-xs text-gray-700 mb-1 flex justify-between">
+							<span>Audience Reach</span>
+							<span className="font-medium">{Math.round(reachPercentage)}%</span>
+						</div>
+						<div className="w-full bg-gray-200 rounded-full h-1.5">
+							<div className="bg-gradient-to-r from-green-500 to-blue-500 h-1.5 rounded-full" style={{ width: `${reachPercentage}%` }}></div>
+						</div>
+					</div>
+				)}
+
 				{/* Edit button */}
 				<button onClick={startEditing} className="mt-2 w-full px-3 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs rounded-md flex items-center justify-center">
 					<svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -971,19 +1184,27 @@ const AudienceNode: React.FC<NodeProps> = ({ id, data, selected }) => {
 		);
 	};
 
-	// Use BaseNode component to render the node
+	// Use BaseNode component with enhanced handles
 	return (
-		<BaseNode
-			id={id}
-			data={data}
-			selected={selected}
-			onEditStart={startEditing}
-			title="Target Audience"
-			color="#059669" // Green color
-		>
-			{isEditing ? renderEditContent() : renderViewContent()}
-		</BaseNode>
+		<>
+			{/* Input handle with enhanced visualization */}
+			<EnhancedPortHandle type="target" position={Position.Left} id="input" nodeId={id} index={0} dataType="content" label="Content" isConnected={true} />
+
+			<BaseNode
+				id={id}
+				data={data}
+				selected={selected}
+				onEditStart={startEditing}
+				title="Enhanced Target Audience"
+				color="#7C3AED" // Purple color to indicate enhancement
+				ref={viewportRef}>
+				{isEditing ? renderEditContent() : renderViewContent()}
+			</BaseNode>
+
+			{/* Output handle with enhanced visualization */}
+			<EnhancedPortHandle type="source" position={Position.Right} id="output" nodeId={id} index={0} dataType="content" label="Targeted Content" isConnected={true} />
+		</>
 	);
 };
 
-export default AudienceNode;
+export default EnhancedAudienceNode;

@@ -1,4 +1,4 @@
-// client/src/components/workflow/custom/EnhancedAnimatedEdge.tsx
+// client/src/components/workflow/custom/AnimatedEdge.tsx
 import React, { useState, useEffect, useRef } from "react";
 import { EdgeProps, getSmoothStepPath, useReactFlow } from "reactflow";
 import { useWorkflowStore } from "../workflowStore";
@@ -10,7 +10,7 @@ interface DataFlowParticle {
 	speed: number;
 }
 
-const EnhancedAnimatedEdge: React.FC<EdgeProps> = ({
+const AnimatedEdge: React.FC<EdgeProps> = ({
 	id,
 	source,
 	target,
@@ -580,4 +580,4 @@ function formatHandleName(handle: string): string {
 	return handle.replace(/([A-Z])/g, " $1").replace(/^./, (str) => str.toUpperCase());
 }
 
-export default EnhancedAnimatedEdge;
+export default AnimatedEdge;

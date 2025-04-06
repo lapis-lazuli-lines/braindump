@@ -280,6 +280,106 @@ export const DataFlowVisualizationProvider: React.FC<{ children: React.ReactNode
 		});
 	}, [edges, nodes, state.edges]);
 
+	// Listen for visualization events from document events
+	useEffect(() => {
+		const handleVisualizationEvent = (event: Event) => {
+			const customEvent = event as CustomEvent;
+			const vizEvent = customEvent.detail;
+
+			if (!vizEvent || !vizEvent.type) return;
+
+			switch (vizEvent.type) {
+				case "node_execution_start":
+					if (vizEvent.nodeId) {
+						dispatch({ type: "SET_ACTIVE_NODE", nodeId: vizEvent.nodeId });
+						dispatch({
+							type: "UPDATE_NODE_STATE",
+							nodeId: vizEvent.nodeId,
+							state: { status: "processing", progress: 0, startTime: Date.now() },
+						});
+						dispatch({ type: "ADD_TO_EXECUTION_PATH", nodeId: vizEvent.nodeId });
+					}
+					break;
+
+				case "node_execution_complete":
+					if (vizEvent.nodeId) {
+						dispatch({
+							type: "UPDATE_NODE_STATE",
+							nodeId: vizEvent.nodeId,
+							state: { status: "completed", progress: 100, endTime: Date.now() },
+						});
+
+						// Find outgoing edges to activate with data flow
+						const nodeOutgoingEdges = edges.filter((edge) => edge.source === vizEvent.nodeId);
+
+						nodeOutgoingEdges.forEach((edge) => {
+							// Determine data type - simplified approach
+							const dataType = (edge.sourceHandle || "default") as DataType;
+							dispatch({
+								type: "ACTIVATE_EDGE",
+								edgeId: edge.id,
+								dataType,
+								dataSnapshot: vizEvent.result,
+							});
+
+							// Schedule deactivation after a delay
+							setTimeout(() => {
+								dispatch({ type: "DEACTIVATE_EDGE", edgeId: edge.id });
+							}, 5000);
+						});
+					}
+					break;
+
+				case "node_execution_error":
+					if (vizEvent.nodeId) {
+						dispatch({
+							type: "UPDATE_NODE_STATE",
+							nodeId: vizEvent.nodeId,
+							state: {
+								status: "error",
+								error: vizEvent.error?.message || String(vizEvent.error),
+								endTime: Date.now(),
+							},
+						});
+					}
+					break;
+
+				case "workflow_execution_start":
+					dispatch({ type: "START_EXECUTION" });
+					break;
+
+				case "workflow_execution_complete":
+				case "workflow_execution_error":
+					dispatch({ type: "STOP_EXECUTION" });
+					break;
+			}
+		};
+
+		// Also listen for configuration updates
+		const handleConfigUpdate = (event: Event) => {
+			const customEvent = event as CustomEvent;
+			const config = customEvent.detail;
+
+			if (config.showDataPreviews !== undefined) {
+				dispatch({ type: "SET_SHOW_DATA_PREVIEWS", value: config.showDataPreviews });
+			}
+
+			if (config.animationSpeed !== undefined) {
+				dispatch({ type: "SET_ANIMATION_SPEED", value: config.animationSpeed });
+			}
+		};
+
+		// Register event listeners
+		document.addEventListener("workflow-visualization-event", handleVisualizationEvent);
+		document.addEventListener("visualization-config-update", handleConfigUpdate);
+
+		return () => {
+			// Remove event listeners on cleanup
+			document.removeEventListener("workflow-visualization-event", handleVisualizationEvent);
+			document.removeEventListener("visualization-config-update", handleConfigUpdate);
+		};
+	}, [edges]);
+
 	const contextValue: DataFlowVisualizationContextValue = {
 		state,
 		startVisualization: () => dispatch({ type: "START_EXECUTION" }),

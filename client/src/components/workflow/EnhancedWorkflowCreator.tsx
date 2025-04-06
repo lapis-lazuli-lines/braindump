@@ -4,14 +4,14 @@ import "reactflow/dist/style.css";
 
 // Import visualization components
 import VisualizationIntegrationAdapter from "@/components/workflow/visualization/integration/VisualizationIntegrationAdapter";
-import EnhancedWorkflowCreator from "./EnhancedWorkflowCreator";
+import WorkflowController from "./WorkflowController"; // Use the actual component you want to render
 
 // Main application component that integrates the workflow with visualization
-const WorkflowApp: React.FC = () => {
+const WorkflowApp = () => {
 	return (
 		<ReactFlowProvider>
 			<VisualizationIntegrationAdapter showControlPanel={true} controlPanelPosition="floating" showDataPreview={true}>
-				<EnhancedWorkflowCreator />
+				<WorkflowController />
 			</VisualizationIntegrationAdapter>
 		</ReactFlowProvider>
 	);

@@ -1,6 +1,6 @@
 // src/components/workflow/visualization/integration/VisualizationIntegrationAdapter.tsx
 import React, { useEffect } from "react";
-import { useReactFlow, Edge } from "reactflow";
+import { useReactFlow, Edge, ReactFlowProvider } from "reactflow";
 import { VisualizationIntegrationProvider } from "./VisualizationIntegrationProvide";
 import PerformanceManager from "./PerformanceManager";
 import { ConfigurationProvider } from "./ConfigurationProvider";
@@ -11,6 +11,9 @@ import VisualizationControlPanel from "./VisualizationControlPanel";
 import EnhancedAnimatedEdge from "../EnhancedAnimatedEdge";
 import { WorkflowExecutor } from "../../workflowExecutor";
 import { useWorkflowStore } from "../../workflowStore";
+// Import the DataFlowVisualizationProvider
+import { DataFlowVisualizationProvider } from "../DataFlowVisualizationContext";
+
 // Extended types for the WorkflowExecutor for visualization events
 interface ExecutorOptions {
 	onNodeExecutionStart?: (nodeId: string, data?: any) => void;
@@ -45,87 +48,41 @@ interface VisualizationExecutorOptions extends WorkflowExecutorOptions {
 	onWorkflowError?: (error: any) => void;
 	onDataTransform?: (sourceId: string, targetId: string, edgeId: string, beforeData: any, afterData: any) => void;
 }
-/**
- * The VisualizationIntegrationAdapter wraps the workflow creator with all the necessary
- * visualization providers to enable data flow visualization features.
- */
-const VisualizationIntegrationAdapter: React.FC<VisualizationIntegrationAdapterProps> = ({
+const VisualizationIntegrationInner: React.FC<VisualizationIntegrationAdapterProps> = ({
 	children,
 	showControlPanel = true,
 	controlPanelPosition = "floating",
 	showDataPreview = true,
 }) => {
-	const { getEdges } = useReactFlow();
-	const { edges } = useWorkflowStore();
-	// Register our enhanced edge type for ReactFlow
-	useEffect(() => {
-		// This would be done in your node/edge registration system
-		// Here we're conceptually showing how you would add the enhanced edge
-		const edgeTypes = {
-			animated: EnhancedAnimatedEdge,
-			// other edge types...
-		};
-
-		// In a real implementation, you would update your edge types registration
-		// For example: setEdgeTypes(edgeTypes);
-	}, []);
-
-	// Monkey-patch the WorkflowExecutor to emit visualization events
-	useEffect(() => {
-		// This is where we would patch the WorkflowExecutor to emit visualization events
-		// For example:
-		// Get the original executeNode method
-		/*
-    const originalExecuteNode = WorkflowExecutor.prototype.executeNode;
-    
-    // Override with our enhanced version
-    WorkflowExecutor.prototype.executeNode = async function(nodeId, inputs) {
-      // Emit start event
-      if (this.options?.onNodeExecutionStart) {
-        this.options.onNodeExecutionStart(nodeId, inputs);
-      }
-      
-      try {
-        // Call original method
-        const result = await originalExecuteNode.call(this, nodeId, inputs);
-        
-        // Emit complete event
-        if (this.options?.onNodeExecutionComplete) {
-          this.options.onNodeExecutionComplete(nodeId, result);
-        }
-        
-        return result;
-      } catch (error) {
-        // Emit error event
-        if (this.options?.onNodeExecutionError) {
-          this.options.onNodeExecutionError(nodeId, error);
-        }
-        throw error;
-      }
-    };
-    */
-		// This is a conceptual implementation - in a real system you would
-		// either extend the WorkflowExecutor class or modify it to include
-		// these event hooks
-	}, []);
-
 	return (
-		<VisualizationIntegrationProvider>
-			<PerformanceManager>
-				<ConfigurationProvider>
-					<ExecutionPathAdapter>
-						<PortActivityAdapter enableDataPreviews={showDataPreview}>
-							<TransformationAdapter>
-								{children}
+		<DataFlowVisualizationProvider>
+			<VisualizationIntegrationProvider>
+				<PerformanceManager>
+					<ConfigurationProvider>
+						<ExecutionPathAdapter>
+							<PortActivityAdapter enableDataPreviews={showDataPreview}>
+								<TransformationAdapter>
+									{children}
+									{showControlPanel && <VisualizationControlPanel placement={controlPanelPosition} />}
+								</TransformationAdapter>
+							</PortActivityAdapter>
+						</ExecutionPathAdapter>
+					</ConfigurationProvider>
+				</PerformanceManager>
+			</VisualizationIntegrationProvider>
+		</DataFlowVisualizationProvider>
+	);
+};
 
-								{/* Visualization control panel */}
-								{showControlPanel && <VisualizationControlPanel placement={controlPanelPosition} alwaysVisible={false} />}
-							</TransformationAdapter>
-						</PortActivityAdapter>
-					</ExecutionPathAdapter>
-				</ConfigurationProvider>
-			</PerformanceManager>
-		</VisualizationIntegrationProvider>
+/**
+ * The VisualizationIntegrationAdapter wraps the workflow creator with all the necessary
+ * visualization providers to enable data flow visualization features.
+ */
+const VisualizationIntegrationAdapter: React.FC<VisualizationIntegrationAdapterProps> = (props) => {
+	return (
+		<ReactFlowProvider>
+			<VisualizationIntegrationInner {...props} />
+		</ReactFlowProvider>
 	);
 };
 

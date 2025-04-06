@@ -14,6 +14,39 @@
     /* Firefox */
 }
 
+/* In your global CSS file */
+html, body, #root {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    width: 100%;
+    overflow: hidden;
+}
+
+.workflow-app {
+    width: 100%;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.react-flow__container {
+    height: 100%;
+    width: 100%;
+}
+
+.react-flow__renderer {
+    width: 100%;
+    height: 100%;
+}
+
+/* Add custom styling for your nodes */
+.react-flow__node {
+    border-radius: 5px;
+    padding: 10px;
+    min-width: 150px;
+}
+
 /* Animation utilities */
 @keyframes fadeIn {
     from {

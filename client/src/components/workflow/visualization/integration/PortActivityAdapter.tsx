@@ -238,19 +238,17 @@ export const EnhancedPort: React.FC<EnhancedPortProps> = ({ id, nodeId, type, po
 export function withPortActivityTracking<T extends NodeProps>(WrappedComponent: React.ComponentType<T>) {
 	return (props: T) => {
 		const { id, data } = props;
-		const { getNodePorts } = usePortActivity();
 
+		const { getNodePorts } = usePortActivity(); // Now this is safe
 		// Get all ports for this node
 		const inputPorts = getNodePorts(id, "input");
 		const outputPorts = getNodePorts(id, "output");
-
 		// Enhance node data with port information
 		const enhancedData = {
 			...data,
 			inputPorts,
 			outputPorts,
 		};
-
 		return <WrappedComponent {...props} data={enhancedData} />;
 	};
 }

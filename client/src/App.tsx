@@ -12,6 +12,7 @@ import ProtectedRoute from "./components/auth/ProtectedRoute";
 import DirectSignIn from "./components/auth/DirectSignIn";
 import DirectSignUp from "./components/auth/DirectSignUp";
 import SSOCallback from "./components/auth/SSOCallback";
+import WorkflowApp from "./components/workflow/WorkflowApp";
 
 // Lazy load other components
 const WaveeAI = lazy(() => import("./components/WaveeAI"));
@@ -46,6 +47,7 @@ function App() {
 				<ErrorProvider>
 					<AuthProvider>
 						<GlobalErrorNotification />
+
 						<Suspense fallback={<LoadingFallback />}>
 							<Routes>
 								{/* Use the direct sign-in/up components */}
@@ -61,6 +63,7 @@ function App() {
 
 								<Route path="*" element={<Navigate to="/" replace />} />
 							</Routes>
+							<WorkflowApp />
 						</Suspense>
 					</AuthProvider>
 				</ErrorProvider>

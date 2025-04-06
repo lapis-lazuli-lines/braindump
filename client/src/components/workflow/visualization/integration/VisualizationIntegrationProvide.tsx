@@ -1,7 +1,8 @@
 // src/components/workflow/visualization/integration/VisualizationIntegrationProvider.tsx
 import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
 import { useWorkflowStore } from "../../workflowStore";
-import { useDataFlowVisualization } from "../DataFlowVisualizationContext";
+// Remove direct import of useDataFlowVisualization
+// import { useDataFlowVisualization } from "../DataFlowVisualizationContext";
 import { DataType } from "../../registry/nodeRegistry";
 
 // Define the visualization configuration settings
@@ -171,9 +172,11 @@ export const VisualizationIntegrationProvider: React.FC<{ children: React.ReactN
 
 	// Get react-flow instance
 
-	// Get workflow store and data flow context
+	// Get workflow store
 	const { nodes, edges } = useWorkflowStore();
-	const dataFlowVisualization = useDataFlowVisualization();
+
+	// We'll use a custom event system to communicate with DataFlowVisualizationProvider
+	// Instead of directly using the hook
 
 	// Initialize when component mounts
 	useEffect(() => {
@@ -207,37 +210,38 @@ export const VisualizationIntegrationProvider: React.FC<{ children: React.ReactN
 		// Mark initialization complete
 		setIsInitialized(true);
 
-		// Apply configuration to data flow visualization context
-		if (dataFlowVisualization) {
-			dataFlowVisualization.setShowDataPreviews(config.showDataPreviews);
-			dataFlowVisualization.setAnimationSpeed(config.animationSpeed);
-		}
+		// Dispatch configuration event for DataFlowVisualizationProvider to listen to
+		const configEvent = new CustomEvent("visualization-config-update", {
+			detail: {
+				showDataPreviews: config.showDataPreviews,
+				animationSpeed: config.animationSpeed,
+			},
+		});
+		document.dispatchEvent(configEvent);
 	}, []);
 
 	// Update configuration
-	const updateConfig = useCallback(
-		(updates: Partial<VisualizationConfig>) => {
-			setConfig((prevConfig) => {
-				const newConfig = { ...prevConfig, ...updates };
+	const updateConfig = useCallback((updates: Partial<VisualizationConfig>) => {
+		setConfig((prevConfig) => {
+			const newConfig = { ...prevConfig, ...updates };
 
-				// Save to local storage
-				localStorage.setItem("workflow-visualization-config", JSON.stringify(newConfig));
+			// Save to local storage
+			localStorage.setItem("workflow-visualization-config", JSON.stringify(newConfig));
 
-				// Apply relevant settings to data flow visualization
-				if (dataFlowVisualization) {
-					if (updates.showDataPreviews !== undefined) {
-						dataFlowVisualization.setShowDataPreviews(updates.showDataPreviews);
-					}
-					if (updates.animationSpeed !== undefined) {
-						dataFlowVisualization.setAnimationSpeed(updates.animationSpeed);
-					}
-				}
+			// Dispatch event for DataFlowVisualizationProvider to listen to
+			if (updates.showDataPreviews !== undefined || updates.animationSpeed !== undefined) {
+				const configEvent = new CustomEvent("visualization-config-update", {
+					detail: {
+						showDataPreviews: updates.showDataPreviews !== undefined ? updates.showDataPreviews : prevConfig.showDataPreviews,
+						animationSpeed: updates.animationSpeed !== undefined ? updates.animationSpeed : prevConfig.animationSpeed,
+					},
+				});
+				document.dispatchEvent(configEvent);
+			}
 
-				return newConfig;
-			});
-		},
-		[dataFlowVisualization]
-	);
+			return newConfig;
+		});
+	}, []);
 
 	// Apply configuration preset
 	const applyPreset = useCallback(
@@ -250,19 +254,17 @@ export const VisualizationIntegrationProvider: React.FC<{ children: React.ReactN
 	// Handle visualization events
 	const dispatchVisualizationEvent = useCallback(
 		(event: VisualizationEvent) => {
-			// Process the event based on type
+			// Create a custom DOM event to communicate between components
+			const customEvent = new CustomEvent("workflow-visualization-event", {
+				detail: event,
+			});
+
+			// Dispatch to document so other components can listen
+			document.dispatchEvent(customEvent);
+
+			// Process the event for local state updates
 			switch (event.type) {
 				case "node_execution_start":
-					if (dataFlowVisualization) {
-						dataFlowVisualization.setActiveNode(event.nodeId);
-						dataFlowVisualization.updateNodeState(event.nodeId, {
-							status: "processing",
-							progress: 0,
-							startTime: Date.now(),
-						});
-						dataFlowVisualization.addToExecutionPath(event.nodeId);
-					}
-
 					// Update extended node state
 					setExtendedNodeStates((prev) => ({
 						...prev,
@@ -273,162 +275,82 @@ export const VisualizationIntegrationProvider: React.FC<{ children: React.ReactN
 					}));
 					break;
 
-				case "node_execution_progress":
-					if (dataFlowVisualization) {
-						dataFlowVisualization.updateNodeState(event.nodeId, {
-							status: "processing",
-							progress: event.progress,
-						});
-					}
-					break;
-
 				case "node_execution_complete":
-					if (dataFlowVisualization) {
-						const endTime = Date.now();
-						const nodeState = dataFlowVisualization.getNodeState(event.nodeId);
-						const startTime = nodeState?.startTime || endTime;
-						const executionTime = endTime - startTime;
+					// Calculate execution time (approximate)
+					const executionTime = 500; // Placeholder value since we don't have actual timing here
 
-						dataFlowVisualization.updateNodeState(event.nodeId, {
-							status: "completed",
-							progress: 100,
-							endTime,
-						});
+					// Update extended node state with execution stats
+					setExtendedNodeStates((prev) => {
+						const current = prev[event.nodeId] || {
+							executionCount: 0,
+							totalExecutionTime: 0,
+							averageExecutionTime: 0,
+							lastExecutionTime: 0,
+							successRate: 100,
+						};
 
-						// Find outgoing edges to activate them
-						const nodeOutgoingEdges = edges.filter((edge) => edge.source === event.nodeId);
-						nodeOutgoingEdges.forEach((edge) => {
-							// This is simplified - you'll need to determine the data type
-							// based on your system's conventions
-							const dataType = (edge.sourceHandle || "default") as DataType;
-							dataFlowVisualization.activateEdge(edge.id, dataType, event.result);
+						const newExecutionCount = current.executionCount + 1;
+						const newTotalTime = current.totalExecutionTime + executionTime;
 
-							// Schedule deactivation
-							setTimeout(() => {
-								dataFlowVisualization.deactivateEdge(edge.id);
-							}, 5000);
-						});
-
-						// Update extended node state with execution stats
-						setExtendedNodeStates((prev) => {
-							const current = prev[event.nodeId] || {
-								executionCount: 0,
-								totalExecutionTime: 0,
-								averageExecutionTime: 0,
-								lastExecutionTime: 0,
-								successRate: 100,
-							};
-
-							const newExecutionCount = current.executionCount + 1;
-							const newTotalTime = current.totalExecutionTime + executionTime;
-
-							return {
-								...prev,
-								[event.nodeId]: {
-									...current,
-									executionCount: newExecutionCount,
-									totalExecutionTime: newTotalTime,
-									averageExecutionTime: newTotalTime / newExecutionCount,
-									lastExecutionTime: executionTime,
-									outputData: event.result,
-									successRate: (current.successRate * (newExecutionCount - 1) + 100) / newExecutionCount,
-								},
-							};
-						});
-					}
+						return {
+							...prev,
+							[event.nodeId]: {
+								...current,
+								executionCount: newExecutionCount,
+								totalExecutionTime: newTotalTime,
+								averageExecutionTime: newTotalTime / newExecutionCount,
+								lastExecutionTime: executionTime,
+								outputData: event.result,
+								successRate: (current.successRate * (newExecutionCount - 1) + 100) / newExecutionCount,
+							},
+						};
+					});
 					break;
 
 				case "node_execution_error":
-					if (dataFlowVisualization) {
-						const endTime = Date.now();
-						const nodeState = dataFlowVisualization.getNodeState(event.nodeId);
-						const startTime = nodeState?.startTime || endTime;
-						const executionTime = endTime - startTime;
+					const errorExecutionTime = 500; // Placeholder
 
-						dataFlowVisualization.updateNodeState(event.nodeId, {
-							status: "error",
-							error: event.error?.message || String(event.error),
-							endTime,
-						});
+					// Update extended node state with error stats
+					setExtendedNodeStates((prev) => {
+						const current = prev[event.nodeId] || {
+							executionCount: 0,
+							totalExecutionTime: 0,
+							averageExecutionTime: 0,
+							lastExecutionTime: 0,
+							successRate: 100,
+						};
 
-						// Update extended node state with error stats
-						setExtendedNodeStates((prev) => {
-							const current = prev[event.nodeId] || {
-								executionCount: 0,
-								totalExecutionTime: 0,
-								averageExecutionTime: 0,
-								lastExecutionTime: 0,
-								successRate: 100,
-							};
+						const newExecutionCount = current.executionCount + 1;
+						const newTotalTime = current.totalExecutionTime + errorExecutionTime;
 
-							const newExecutionCount = current.executionCount + 1;
-							const newTotalTime = current.totalExecutionTime + executionTime;
-
-							return {
-								...prev,
-								[event.nodeId]: {
-									...current,
-									executionCount: newExecutionCount,
-									totalExecutionTime: newTotalTime,
-									averageExecutionTime: newTotalTime / newExecutionCount,
-									lastExecutionTime: executionTime,
-									successRate: (current.successRate * (newExecutionCount - 1) + 0) / newExecutionCount,
-								},
-							};
-						});
-					}
+						return {
+							...prev,
+							[event.nodeId]: {
+								...current,
+								executionCount: newExecutionCount,
+								totalExecutionTime: newTotalTime,
+								averageExecutionTime: newTotalTime / newExecutionCount,
+								lastExecutionTime: errorExecutionTime,
+								successRate: (current.successRate * (newExecutionCount - 1) + 0) / newExecutionCount,
+							},
+						};
+					});
 					break;
 
 				case "edge_data_flow_start":
-					if (dataFlowVisualization && event.edgeId) {
+					if (event.edgeId) {
 						// Cache edge data for later use
 						setEdgeDataCache((prev) => ({
 							...prev,
 							[event.edgeId]: event.data,
 						}));
-
-						// Here we would activate the edge with appropriate data
-						// This is simplified - you'll need to determine the data type
-						const edge = edges.find((e) => e.id === event.edgeId);
-						if (edge) {
-							const dataType = edge.sourceHandle || "default";
-							dataFlowVisualization.activateEdge(event.edgeId, dataType as DataType, event.data);
-						}
 					}
 					break;
 
-				case "edge_data_flow_complete":
-					if (dataFlowVisualization && event.edgeId) {
-						// Deactivate the edge
-						dataFlowVisualization.deactivateEdge(event.edgeId);
-					}
-					break;
-
-				case "workflow_execution_start":
-					if (dataFlowVisualization) {
-						dataFlowVisualization.startVisualization();
-					}
-					break;
-
-				case "workflow_execution_complete":
-					if (dataFlowVisualization) {
-						dataFlowVisualization.stopVisualization();
-					}
-					break;
-
-				case "workflow_execution_error":
-					if (dataFlowVisualization) {
-						dataFlowVisualization.stopVisualization();
-					}
-					break;
-
-				case "data_transform":
-					// Handle data transformation visualization
-					// This would be connected to the TransformationVisualizer in a future implementation
-					break;
+				// Other event types can be handled here
 			}
 		},
-		[dataFlowVisualization, edges]
+		[edges]
 	);
 
 	// Helper to capture node data
@@ -454,7 +376,6 @@ export const VisualizationIntegrationProvider: React.FC<{ children: React.ReactN
 	// Helper to capture data transformations
 	const captureTransformation = useCallback(
 		(sourceId: string, targetId: string, edgeId: string, beforeData: any, afterData: any) => {
-			// This would connect to the TransformationVisualizer in a future implementation
 			dispatchVisualizationEvent({
 				type: "data_transform",
 				sourceId,

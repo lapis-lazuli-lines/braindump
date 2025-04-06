@@ -5,7 +5,6 @@ import "reactflow/dist/style.css";
 
 import { useWorkflowStore } from "./workflowStore";
 import NodePalette from "./NodePallete";
-import { nodeTypes } from "./customNodes";
 import NodeDetailsPanel from "./custom/NodeDetailsPanel";
 import HelpModal from "./HelpModal";
 import SaveWorkflowModal from "./SavedWorkflowsModal";
@@ -13,7 +12,16 @@ import TogglableGuide from "./custom/TogglableGuide";
 import AnimatedEdge from "./custom/AnimatedEdge";
 import { CSSVariablesStyle } from "./custom/StyledNodes";
 import WorkflowExecutor from "./workflowExecutor";
+import { EnhancedIdeaNode, EnhancedDraftNode, EnhancedMediaNode, EnhancedPlatformNode, EnhancedConditionalNode } from "./EnhanceNodes";
 
+// Register node types
+const nodeTypes = {
+	ideaNode: EnhancedIdeaNode,
+	draftNode: EnhancedDraftNode,
+	mediaNode: EnhancedMediaNode,
+	platformNode: EnhancedPlatformNode,
+	conditionalNode: EnhancedConditionalNode,
+};
 // Define edge types for the flow
 const edgeTypes = {
 	animated: AnimatedEdge,
@@ -260,7 +268,7 @@ const WorkflowController: React.FC = () => {
 	};
 
 	return (
-		<div className="h-full flex flex-col">
+		<div className="h-full flex flex-col" style={{ height: "100%", width: "100%" }}>
 			{/* CSS Variables for Node Styling */}
 			<CSSVariablesStyle />
 
@@ -311,14 +319,14 @@ const WorkflowController: React.FC = () => {
 			</div>
 
 			{/* Main Content Area */}
-			<div className="flex-1 flex overflow-hidden">
+			<div className="flex-1 flex overflow-hidden" style={{ height: "calc(100% - 60px)" }}>
 				{/* Node Palette */}
 				<div className="w-64 bg-gray-100 p-4 border-r border-gray-300 overflow-y-auto">
 					<NodePalette />
 				</div>
 
 				{/* Flow Editor */}
-				<div className="flex-1 h-full" onDragOver={onDragOver} onDrop={onDrop}>
+				<div className="flex-1 h-full" style={{ position: "relative", minHeight: "500px" }} onDragOver={onDragOver} onDrop={onDrop}>
 					<ReactFlow
 						nodes={nodes}
 						edges={edges}
@@ -329,32 +337,17 @@ const WorkflowController: React.FC = () => {
 						nodeTypes={nodeTypes}
 						edgeTypes={edgeTypes}
 						fitView
-						attributionPosition="bottom-right">
+						style={{ width: "100%", height: "100%" }}>
 						<Controls />
-						<MiniMap
-							nodeStrokeColor={(n) => {
-								if (n.selected) return "#5a2783";
-								if (executionProgress.completedNodes.includes(n.id)) return "#10b981";
-								if (executionProgress.failedNodes.includes(n.id)) return "#ef4444";
-								return "#292524";
-							}}
-							nodeColor={(n) => {
-								if (n.type === "ideaNode") return "#7c3aed";
-								if (n.type === "draftNode") return "#e03885";
-								if (n.type === "mediaNode") return "#3b82f6";
-								if (n.type === "platformNode") return "#8b5cf6";
-								if (n.type === "conditionalNode") return "#f59e0b";
-								if (n.type === "previewNode") return "#0369a1";
-								return "#ddd";
-							}}
-						/>
+						<MiniMap />
 						<Background color="#aaa" gap={12} size={1} />
-
-						{/* Guide Overlay */}
-						<TogglableGuide isOpen={nodes.length < 2} />
 					</ReactFlow>
 				</div>
-
+				{selectedNode && (
+					<div className="w-64 bg-gray-100 p-4 border-l border-gray-300 overflow-y-auto">
+						<NodeDetailsPanel selectedNode={selectedNode} updateNodeData={updateNodeData} onDeleteNode={removeNode} />
+					</div>
+				)}
 				{/* Properties Panel */}
 				<NodeDetailsPanel selectedNode={selectedNode} updateNodeData={updateNodeData} onDeleteNode={removeNode} />
 			</div>

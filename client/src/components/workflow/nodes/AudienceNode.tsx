@@ -1,12 +1,11 @@
-// client/src/components/workflow/nodes/EnhancedAudienceNode.tsx
+// client/src/components/workflow/nodes/AudienceNode.tsx
 import React, { useState, useEffect, useCallback, useMemo, useReducer } from "react";
-import { NodeProps, Handle, Position } from "reactflow";
+import { NodeProps, Position } from "reactflow";
 import BaseNode from "./BaseNode";
 import { useWorkflowStore } from "../workflowStore";
-import { usePortActivity, EnhancedPortHandle } from "../visualization/core/PortActivityIndicator";
-import { useTransformationVisualizer, useDataSnapshotRegistration } from "../visualization/core/TransformationVisualizer";
+import { EnhancedPortHandle } from "../visualization/core/PortActivityIndicator";
+import { useDataSnapshotRegistration } from "../visualization/core/TransformationVisualizer";
 import { usePerformanceOptimizer, useViewportOptimization } from "../visualization/core/PerformanceOptimizer";
-import { useExecutionPathVisualizer } from "../visualization/core/ExecutionPathVisualizer";
 
 // Platform-specific visibility options
 interface VisibilitySettings {
@@ -15,21 +14,11 @@ interface VisibilitySettings {
 	twitter?: "public" | "protected";
 	linkedin?: "public" | "connections" | "connectionPlus";
 	tiktok?: "public" | "followersOnly" | "private";
+	[key: string]: string | undefined; // Add index signature
 }
 
-// Custom targeting lists for more granular control
-interface CustomSettings {
-	facebook?: {
-		includedLists?: string[];
-		excludedLists?: string[];
-	};
-	instagram?: {
-		closeFollowers?: boolean;
-	};
-	linkedin?: {
-		includedGroups?: string[];
-	};
-}
+// Use Record type to allow string indexing with proper typing
+type CustomSettings = Record<string, Record<string, any>>;
 
 // Complete audience node data structure
 interface AudienceData {
@@ -143,7 +132,7 @@ const audienceReducer = (state: AudienceData, action: AudienceAction): AudienceD
 				customSettings: {
 					...state.customSettings,
 					[platform]: {
-						...state.customSettings[platform],
+						...(state.customSettings[platform] || {}),
 						[key]: value,
 					},
 				},
@@ -152,7 +141,7 @@ const audienceReducer = (state: AudienceData, action: AudienceAction): AudienceD
 		case "ADD_CUSTOM_LIST_ITEM":
 			const { platform: p1, listType, item } = action.payload;
 			const platformSettings = state.customSettings[p1] || {};
-			const currentList = platformSettings[listType] || [];
+			const currentList: string[] = [...(platformSettings[listType] || [])];
 
 			return {
 				...state,
@@ -168,7 +157,7 @@ const audienceReducer = (state: AudienceData, action: AudienceAction): AudienceD
 		case "REMOVE_CUSTOM_LIST_ITEM":
 			const { platform: p2, listType: lt, item: i } = action.payload;
 			const pSettings = state.customSettings[p2] || {};
-			const cList = pSettings[lt] || [];
+			const listArray: string[] = [...(pSettings[lt] || [])];
 
 			return {
 				...state,
@@ -176,7 +165,7 @@ const audienceReducer = (state: AudienceData, action: AudienceAction): AudienceD
 					...state.customSettings,
 					[p2]: {
 						...pSettings,
-						[lt]: cList.filter((listItem) => listItem !== i),
+						[lt]: listArray.filter((listItem) => listItem !== i),
 					},
 				},
 			};
@@ -187,14 +176,16 @@ const audienceReducer = (state: AudienceData, action: AudienceAction): AudienceD
 };
 
 // Enhanced Audience Node component
-const EnhancedAudienceNode: React.FC<NodeProps> = ({ id, data, selected }) => {
+const AudienceNode: React.FC<NodeProps> = (props) => {
+	const { id, data } = props;
+
 	// Workflow store
 	const updateNodeData = useWorkflowStore((state) => state.updateNodeData);
 	const nodes = useWorkflowStore((state) => state.nodes);
 	const edges = useWorkflowStore((state) => state.edges);
 
-	// Performance optimization
-	const { settings: perfSettings } = usePerformanceOptimizer();
+	// Performance optimization - don't destructure to avoid unused variable
+	usePerformanceOptimizer();
 
 	// Audience data reducer
 	const [audienceData, dispatch] = useReducer(audienceReducer, {
@@ -213,8 +204,8 @@ const EnhancedAudienceNode: React.FC<NodeProps> = ({ id, data, selected }) => {
 	// Tab state for UI organization
 	const [activeTab, setActiveTab] = useState<"demographics" | "interests" | "platform">("demographics");
 
-	// Viewport optimization for rendering complex components
-	const { ref: viewportRef } = useViewportOptimization(`audience-node-${id}`, () => {
+	// Viewport optimization for rendering complex components - don't destructure to avoid unused variable
+	useViewportOptimization(`audience-node-${id}`, () => {
 		// This could be used for animations or visual effects
 	});
 
@@ -305,7 +296,10 @@ const EnhancedAudienceNode: React.FC<NodeProps> = ({ id, data, selected }) => {
 		// Create a processed version of audience data with metrics
 		const processed = {
 			...audienceData,
-			estimatedReach: getReachPercentage(audienceData.detectedPlatform || "", audienceData.visibilitySettings[audienceData.detectedPlatform || ""] || "public"),
+			estimatedReach: getReachPercentage(
+				audienceData.detectedPlatform || "",
+				audienceData.detectedPlatform ? audienceData.visibilitySettings[audienceData.detectedPlatform] || "public" : "public"
+			),
 			processingTimestamp: Date.now(),
 		};
 
@@ -777,18 +771,20 @@ const EnhancedAudienceNode: React.FC<NodeProps> = ({ id, data, selected }) => {
 
 										{/* Display included lists */}
 										<div className="flex flex-wrap gap-1 mt-1">
-											{audienceData.customSettings.facebook?.includedLists?.map((list) => (
-												<div key={list} className="bg-blue-50 text-blue-800 text-xs px-2 py-0.5 rounded-full flex items-center">
-													<span>{list}</span>
-													<button
-														onClick={() => removeFromCustomList("facebook", "includedLists", list)}
-														className="ml-1 text-blue-500 hover:text-blue-700">
-														<svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-															<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-														</svg>
-													</button>
-												</div>
-											))}
+											{audienceData.customSettings.facebook &&
+												audienceData.customSettings.facebook.includedLists &&
+												(audienceData.customSettings.facebook.includedLists as string[]).map((list: string) => (
+													<div key={list} className="bg-blue-50 text-blue-800 text-xs px-2 py-0.5 rounded-full flex items-center">
+														<span>{list}</span>
+														<button
+															onClick={() => removeFromCustomList("facebook", "includedLists", list)}
+															className="ml-1 text-blue-500 hover:text-blue-700">
+															<svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+																<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+															</svg>
+														</button>
+													</div>
+												))}
 										</div>
 									</div>
 
@@ -816,18 +812,20 @@ const EnhancedAudienceNode: React.FC<NodeProps> = ({ id, data, selected }) => {
 
 										{/* Display excluded lists */}
 										<div className="flex flex-wrap gap-1 mt-1">
-											{audienceData.customSettings.facebook?.excludedLists?.map((list) => (
-												<div key={list} className="bg-red-50 text-red-800 text-xs px-2 py-0.5 rounded-full flex items-center">
-													<span>{list}</span>
-													<button
-														onClick={() => removeFromCustomList("facebook", "excludedLists", list)}
-														className="ml-1 text-red-500 hover:text-red-700">
-														<svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-															<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-														</svg>
-													</button>
-												</div>
-											))}
+											{audienceData.customSettings.facebook &&
+												audienceData.customSettings.facebook.excludedLists &&
+												(audienceData.customSettings.facebook.excludedLists as string[]).map((list: string) => (
+													<div key={list} className="bg-red-50 text-red-800 text-xs px-2 py-0.5 rounded-full flex items-center">
+														<span>{list}</span>
+														<button
+															onClick={() => removeFromCustomList("facebook", "excludedLists", list)}
+															className="ml-1 text-red-500 hover:text-red-700">
+															<svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+																<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+															</svg>
+														</button>
+													</div>
+												))}
 										</div>
 									</div>
 								</div>
@@ -925,16 +923,20 @@ const EnhancedAudienceNode: React.FC<NodeProps> = ({ id, data, selected }) => {
 
 								{/* Display groups */}
 								<div className="flex flex-wrap gap-1 mt-1">
-									{audienceData.customSettings.linkedin?.includedGroups?.map((group) => (
-										<div key={group} className="bg-blue-50 text-blue-800 text-xs px-2 py-0.5 rounded-full flex items-center">
-											<span>{group}</span>
-											<button onClick={() => removeFromCustomList("linkedin", "includedGroups", group)} className="ml-1 text-blue-500 hover:text-blue-700">
-												<svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-													<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-												</svg>
-											</button>
-										</div>
-									))}
+									{audienceData.customSettings.linkedin &&
+										audienceData.customSettings.linkedin.includedGroups &&
+										(audienceData.customSettings.linkedin.includedGroups as string[]).map((group: string) => (
+											<div key={group} className="bg-blue-50 text-blue-800 text-xs px-2 py-0.5 rounded-full flex items-center">
+												<span>{group}</span>
+												<button
+													onClick={() => removeFromCustomList("linkedin", "includedGroups", group)}
+													className="ml-1 text-blue-500 hover:text-blue-700">
+													<svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+														<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+													</svg>
+												</button>
+											</div>
+										))}
 								</div>
 							</div>
 						</div>
@@ -1150,7 +1152,11 @@ const EnhancedAudienceNode: React.FC<NodeProps> = ({ id, data, selected }) => {
 						<div className="flex items-center bg-blue-50 rounded-md p-2 text-xs text-blue-700">
 							<div className="capitalize font-medium">{audienceData.detectedPlatform}</div>
 							<div className="mx-2">•</div>
-							<div className="capitalize">{audienceData.visibilitySettings[audienceData.detectedPlatform]?.replace(/([A-Z])/g, " $1").trim() || "Public"}</div>
+							<div className="capitalize">
+								{audienceData.detectedPlatform && audienceData.visibilitySettings[audienceData.detectedPlatform]
+									? audienceData.visibilitySettings[audienceData.detectedPlatform]?.replace(/([A-Z])/g, " $1").trim()
+									: "Public"}
+							</div>
 						</div>
 					</div>
 				)}
@@ -1184,22 +1190,25 @@ const EnhancedAudienceNode: React.FC<NodeProps> = ({ id, data, selected }) => {
 		);
 	};
 
-	// Use BaseNode component with enhanced handles
+	// Create a custom component to wrap BaseNode to solve the missing props issue
+	const EnhancedBaseNode: React.FC<React.PropsWithChildren<any>> = ({ children, ...restProps }) => {
+		return (
+			// Spread all props to BaseNode
+			<BaseNode {...props} {...restProps}>
+				{children}
+			</BaseNode>
+		);
+	};
+
 	return (
 		<>
 			{/* Input handle with enhanced visualization */}
 			<EnhancedPortHandle type="target" position={Position.Left} id="input" nodeId={id} index={0} dataType="content" label="Content" isConnected={true} />
 
-			<BaseNode
-				id={id}
-				data={data}
-				selected={selected}
-				onEditStart={startEditing}
-				title="Enhanced Target Audience"
-				color="#7C3AED" // Purple color to indicate enhancement
-				ref={viewportRef}>
+			{/* Use the custom component with children */}
+			<EnhancedBaseNode onEditStart={startEditing} title="Enhanced Target Audience" color="#7C3AED">
 				{isEditing ? renderEditContent() : renderViewContent()}
-			</BaseNode>
+			</EnhancedBaseNode>
 
 			{/* Output handle with enhanced visualization */}
 			<EnhancedPortHandle type="source" position={Position.Right} id="output" nodeId={id} index={0} dataType="content" label="Targeted Content" isConnected={true} />
@@ -1207,4 +1216,4 @@ const EnhancedAudienceNode: React.FC<NodeProps> = ({ id, data, selected }) => {
 	);
 };
 
-export default EnhancedAudienceNode;
+export default AudienceNode;

@@ -17,7 +17,6 @@ const EnhancedAnimatedEdge: React.FC<EdgeProps> = ({
 	sourceHandleId,
 	targetHandleId,
 	style = {},
-	data,
 	selected,
 }) => {
 	const { getEdgeState, updateEdgeParticles, state: visualizationState } = useDataFlowVisualization();

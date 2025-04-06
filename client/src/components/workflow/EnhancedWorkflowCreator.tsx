@@ -2,40 +2,39 @@
 import React, { useState, useCallback } from "react";
 import { ReactFlowProvider } from "reactflow";
 import ModernWorkflowCreator from "../wavee/ModernWorkflowCreator";
-import VisualizationIntegrationAdapter, { EnhancedWorkflowExecutor } from "./visualization/integration/VisualizationIntegrationAdapter";
-import { DataType } from "./registry/nodeRegistry";
-import EnhancedAnimatedEdge from "./visualization/EnhancedAnimatedEdge";
+import VisualizationIntegrationAdapter from "./visualization/integration/VisualizationIntegrationAdapter";
+// import { DataType } from "./registry/nodeRegistry";
+// import EnhancedAnimatedEdge from "./visualization/EnhancedAnimatedEdge";
 import NodeStatusIndicator from "./visualization/NodeStatusIndicator";
 import { ExecutionTimeline, ExecutionPathHistory } from "./visualization/integration/ExecutionPathAdapter";
 import { useWorkflowPerformance } from "./visualization/integration/PerformanceManager";
 
 // Register our enhanced components
-import { StyledNode } from "./custom/StyledNodes";
-
+import { IdeaNode, DraftNode, MediaNode, PlatformNode, ConditionalNode } from "./custom/StyledNodes";
 // Enhanced versions of the base nodes with visualization capabilities
-const EnhancedIdeaNode = (props: any) => {
-	// Add NodeStatusIndicator to the base node
-	return (
-		<>
-			<StyledNode.IdeaNode {...props} />
-			<NodeStatusIndicator nodeId={props.id} position="top-right" size="small" />
-		</>
-	);
-};
+// const EnhancedIdeaNode = (props: any) => {
+// 	// Add NodeStatusIndicator to the base node
+// 	return (
+// 		<>
+// 			<IdeaNode {...props} />
+// 			<NodeStatusIndicator nodeId={props.id} position="top-right" size="small" />
+// 		</>
+// 	);
+// };
 
-const EnhancedDraftNode = (props: any) => {
-	return (
-		<>
-			<StyledNode.DraftNode {...props} />
-			<NodeStatusIndicator nodeId={props.id} position="top-right" size="small" />
-		</>
-	);
-};
+// const EnhancedDraftNode = (props: any) => {
+// 	return (
+// 		<>
+// 			<DraftNode {...props} />
+// 			<NodeStatusIndicator nodeId={props.id} position="top-right" size="small" />
+// 		</>
+// 	);
+// };
 
 const EnhancedMediaNode = (props: any) => {
 	return (
 		<>
-			<StyledNode.MediaNode {...props} />
+			<MediaNode {...props} />
 			<NodeStatusIndicator nodeId={props.id} position="top-right" size="small" />
 		</>
 	);
@@ -44,7 +43,7 @@ const EnhancedMediaNode = (props: any) => {
 const EnhancedPlatformNode = (props: any) => {
 	return (
 		<>
-			<StyledNode.PlatformNode {...props} />
+			<PlatformNode {...props} />
 			<NodeStatusIndicator nodeId={props.id} position="top-right" size="small" />
 		</>
 	);
@@ -53,25 +52,25 @@ const EnhancedPlatformNode = (props: any) => {
 const EnhancedConditionalNode = (props: any) => {
 	return (
 		<>
-			<StyledNode.ConditionalNode {...props} />
+			<ConditionalNode {...props} />
 			<NodeStatusIndicator nodeId={props.id} position="top-right" size="small" />
 		</>
 	);
 };
 
 // Enhanced node types mapping
-const enhancedNodeTypes = {
-	ideaNode: EnhancedIdeaNode,
-	draftNode: EnhancedDraftNode,
-	mediaNode: EnhancedMediaNode,
-	platformNode: EnhancedPlatformNode,
-	conditionalNode: EnhancedConditionalNode,
-};
+// const enhancedNodeTypes = {
+// 	ideaNode: EnhancedIdeaNode,
+// 	draftNode: EnhancedDraftNode,
+// 	mediaNode: EnhancedMediaNode,
+// 	platformNode: EnhancedPlatformNode,
+// 	conditionalNode: EnhancedConditionalNode,
+// };
 
 // Enhanced edge types mapping
-const enhancedEdgeTypes = {
-	animated: EnhancedAnimatedEdge,
-};
+// const enhancedEdgeTypes = {
+// 	animated: EnhancedAnimatedEdge,
+// };
 
 /**
  * EnhancedWorkflowCreator wraps the ModernWorkflowCreator with our
@@ -122,7 +121,7 @@ const EnhancedWorkflowCreator: React.FC = () => {
 				</div>
 			</VisualizationIntegrationAdapter>
 
-			<style jsx>{`
+			<style>{`
 				.enhanced-workflow-container {
 					position: relative;
 					width: 100%;

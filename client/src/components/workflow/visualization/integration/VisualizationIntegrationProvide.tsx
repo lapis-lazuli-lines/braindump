@@ -1,8 +1,6 @@
-// src/components/workflow/visualization/integration/VisualizationIntegrationProvider.tsx
-import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
+// src/components/workflow/visualization/integration/VisualizationIntegrationProvide.tsx
+import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from "react";
 import { useWorkflowStore } from "../../workflowStore";
-// Remove direct import of useDataFlowVisualization
-// import { useDataFlowVisualization } from "../DataFlowVisualizationContext";
 import { DataType } from "../../registry/nodeRegistry";
 
 // Define the visualization configuration settings
@@ -167,16 +165,14 @@ const configPresets = {
 export const VisualizationIntegrationProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 	const [config, setConfig] = useState<VisualizationConfig>(defaultConfig);
 	const [extendedNodeStates, setExtendedNodeStates] = useState<Record<string, ExtendedNodeState>>({});
-	const [_edgeDataCache, setEdgeDataCache] = useState<Record<string, any>>({});
+	const [edgeDataCache, setEdgeDataCache] = useState<Record<string, any>>({});
 	const [isInitialized, setIsInitialized] = useState(false);
 
-	// Get react-flow instance
+	// Use refs to avoid state updates during render
+	const configRef = useRef(config);
 
 	// Get workflow store
 	const { nodes, edges } = useWorkflowStore();
-
-	// We'll use a custom event system to communicate with DataFlowVisualizationProvider
-	// Instead of directly using the hook
 
 	// Initialize when component mounts
 	useEffect(() => {
@@ -185,10 +181,11 @@ export const VisualizationIntegrationProvider: React.FC<{ children: React.ReactN
 		if (savedConfig) {
 			try {
 				const parsedConfig = JSON.parse(savedConfig);
-				setConfig((prevConfig) => ({
-					...prevConfig,
-					...parsedConfig,
-				}));
+				setConfig((prevConfig) => {
+					const newConfig = { ...prevConfig, ...parsedConfig };
+					configRef.current = newConfig;
+					return newConfig;
+				});
 			} catch (error) {
 				console.error("Failed to parse saved visualization config:", error);
 			}
@@ -210,26 +207,31 @@ export const VisualizationIntegrationProvider: React.FC<{ children: React.ReactN
 		// Mark initialization complete
 		setIsInitialized(true);
 
-		// Dispatch configuration event for DataFlowVisualizationProvider to listen to
-		const configEvent = new CustomEvent("visualization-config-update", {
-			detail: {
-				showDataPreviews: config.showDataPreviews,
-				animationSpeed: config.animationSpeed,
-			},
-		});
-		document.dispatchEvent(configEvent);
-	}, []);
+		// Dispatch configuration event in a separate effect to avoid state updates during render
+		const timerId = setTimeout(() => {
+			const configEvent = new CustomEvent("visualization-config-update", {
+				detail: {
+					showDataPreviews: configRef.current.showDataPreviews,
+					animationSpeed: configRef.current.animationSpeed,
+				},
+			});
+			document.dispatchEvent(configEvent);
+		}, 0);
+
+		return () => clearTimeout(timerId);
+	}, [nodes]);
 
 	// Update configuration
 	const updateConfig = useCallback((updates: Partial<VisualizationConfig>) => {
 		setConfig((prevConfig) => {
 			const newConfig = { ...prevConfig, ...updates };
+			configRef.current = newConfig;
 
 			// Save to local storage
 			localStorage.setItem("workflow-visualization-config", JSON.stringify(newConfig));
 
-			// Dispatch event for DataFlowVisualizationProvider to listen to
-			if (updates.showDataPreviews !== undefined || updates.animationSpeed !== undefined) {
+			// Dispatch event for DataFlowVisualizationProvider in a safe way
+			setTimeout(() => {
 				const configEvent = new CustomEvent("visualization-config-update", {
 					detail: {
 						showDataPreviews: updates.showDataPreviews !== undefined ? updates.showDataPreviews : prevConfig.showDataPreviews,
@@ -237,7 +239,7 @@ export const VisualizationIntegrationProvider: React.FC<{ children: React.ReactN
 					},
 				});
 				document.dispatchEvent(configEvent);
-			}
+			}, 0);
 
 			return newConfig;
 		});
@@ -252,106 +254,103 @@ export const VisualizationIntegrationProvider: React.FC<{ children: React.ReactN
 	);
 
 	// Handle visualization events
-	const dispatchVisualizationEvent = useCallback(
-		(event: VisualizationEvent) => {
-			// Create a custom DOM event to communicate between components
-			const customEvent = new CustomEvent("workflow-visualization-event", {
-				detail: event,
-			});
+	const dispatchVisualizationEvent = useCallback((event: VisualizationEvent) => {
+		// Create a custom DOM event to communicate between components
+		const customEvent = new CustomEvent("workflow-visualization-event", {
+			detail: event,
+		});
 
-			// Dispatch to document so other components can listen
-			document.dispatchEvent(customEvent);
+		// Dispatch to document so other components can listen
+		document.dispatchEvent(customEvent);
 
-			// Process the event for local state updates
-			switch (event.type) {
-				case "node_execution_start":
-					// Update extended node state
-					setExtendedNodeStates((prev) => ({
+		// Process the event for local state updates
+		switch (event.type) {
+			case "node_execution_start":
+				// Update extended node state
+				setExtendedNodeStates((prev) => ({
+					...prev,
+					[event.nodeId]: {
+						...prev[event.nodeId],
+						inputData: event.data,
+					},
+				}));
+				break;
+
+			case "node_execution_complete":
+				// Calculate execution time (approximate)
+				const executionTime = 500; // Placeholder value since we don't have actual timing here
+
+				// Update extended node state with execution stats
+				setExtendedNodeStates((prev) => {
+					const current = prev[event.nodeId] || {
+						executionCount: 0,
+						totalExecutionTime: 0,
+						averageExecutionTime: 0,
+						lastExecutionTime: 0,
+						successRate: 100,
+					};
+
+					const newExecutionCount = current.executionCount + 1;
+					const newTotalTime = current.totalExecutionTime + executionTime;
+
+					return {
 						...prev,
 						[event.nodeId]: {
-							...prev[event.nodeId],
-							inputData: event.data,
+							...current,
+							executionCount: newExecutionCount,
+							totalExecutionTime: newTotalTime,
+							averageExecutionTime: newTotalTime / newExecutionCount,
+							lastExecutionTime: executionTime,
+							outputData: event.result,
+							successRate: (current.successRate * (newExecutionCount - 1) + 100) / newExecutionCount,
 						},
+					};
+				});
+				break;
+
+			case "node_execution_error":
+				const errorExecutionTime = 500; // Placeholder
+
+				// Update extended node state with error stats
+				setExtendedNodeStates((prev) => {
+					const current = prev[event.nodeId] || {
+						executionCount: 0,
+						totalExecutionTime: 0,
+						averageExecutionTime: 0,
+						lastExecutionTime: 0,
+						successRate: 100,
+					};
+
+					const newExecutionCount = current.executionCount + 1;
+					const newTotalTime = current.totalExecutionTime + errorExecutionTime;
+
+					return {
+						...prev,
+						[event.nodeId]: {
+							...current,
+							executionCount: newExecutionCount,
+							totalExecutionTime: newTotalTime,
+							averageExecutionTime: newTotalTime / newExecutionCount,
+							lastExecutionTime: errorExecutionTime,
+							successRate: (current.successRate * (newExecutionCount - 1) + 0) / newExecutionCount,
+						},
+					};
+				});
+				break;
+
+			case "edge_data_flow_start":
+				if (event.edgeId) {
+					// Cache edge data for later use
+					setEdgeDataCache((prev) => ({
+						...prev,
+						[event.edgeId]: event.data,
 					}));
-					break;
+				}
+				break;
 
-				case "node_execution_complete":
-					// Calculate execution time (approximate)
-					const executionTime = 500; // Placeholder value since we don't have actual timing here
-
-					// Update extended node state with execution stats
-					setExtendedNodeStates((prev) => {
-						const current = prev[event.nodeId] || {
-							executionCount: 0,
-							totalExecutionTime: 0,
-							averageExecutionTime: 0,
-							lastExecutionTime: 0,
-							successRate: 100,
-						};
-
-						const newExecutionCount = current.executionCount + 1;
-						const newTotalTime = current.totalExecutionTime + executionTime;
-
-						return {
-							...prev,
-							[event.nodeId]: {
-								...current,
-								executionCount: newExecutionCount,
-								totalExecutionTime: newTotalTime,
-								averageExecutionTime: newTotalTime / newExecutionCount,
-								lastExecutionTime: executionTime,
-								outputData: event.result,
-								successRate: (current.successRate * (newExecutionCount - 1) + 100) / newExecutionCount,
-							},
-						};
-					});
-					break;
-
-				case "node_execution_error":
-					const errorExecutionTime = 500; // Placeholder
-
-					// Update extended node state with error stats
-					setExtendedNodeStates((prev) => {
-						const current = prev[event.nodeId] || {
-							executionCount: 0,
-							totalExecutionTime: 0,
-							averageExecutionTime: 0,
-							lastExecutionTime: 0,
-							successRate: 100,
-						};
-
-						const newExecutionCount = current.executionCount + 1;
-						const newTotalTime = current.totalExecutionTime + errorExecutionTime;
-
-						return {
-							...prev,
-							[event.nodeId]: {
-								...current,
-								executionCount: newExecutionCount,
-								totalExecutionTime: newTotalTime,
-								averageExecutionTime: newTotalTime / newExecutionCount,
-								lastExecutionTime: errorExecutionTime,
-								successRate: (current.successRate * (newExecutionCount - 1) + 0) / newExecutionCount,
-							},
-						};
-					});
-					break;
-
-				case "edge_data_flow_start":
-					if (event.edgeId) {
-						// Cache edge data for later use
-						setEdgeDataCache((prev) => ({
-							...prev,
-							[event.edgeId]: event.data,
-						}));
-					}
-					break;
-
-				// Other event types can be handled here
-			}
-		},
-		[edges]
-	);
+			// Other event types can be handled here
+		}
+	}, []);
 
 	// Helper to capture node data
 	const captureNodeData = useCallback((nodeId: string, inputData: any, outputData: any) => {

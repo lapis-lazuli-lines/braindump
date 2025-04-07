@@ -1,203 +1,110 @@
-import React, { useState, useEffect, useCallback } from "react";
-import { usePerformanceOptimizer, PerformanceSettings } from "./PerformanceOptimizer";
+// src/components/workflow/visualization/integration/VisualizationControlPanel.tsx
+import React, { useState, useEffect, useCallback, useRef } from "react";
+import { useVisualizationConfig } from "../integration/ConfigurationProvider";
 
-// Types for control panel settings
-interface VisualizationSettings {
-	// Animation settings
-	animationsEnabled: boolean;
-	animationSpeed: number;
-	particleDensity: number;
-
-	// Data preview settings
-	previewSize: "small" | "medium" | "large";
-	detailLevel: "low" | "medium" | "high";
-	autoPinPreviews: boolean;
-
-	// Path visualization settings
-	highlightActivePath: boolean;
-	showAllPaths: boolean;
-
-	// Performance settings
-	offViewportOptimization: boolean;
-	distanceBasedDetail: boolean;
-	maxFps: number;
-}
-
-// Default visualization settings
-const defaultSettings: VisualizationSettings = {
-	animationsEnabled: true,
-	animationSpeed: 1,
-	particleDensity: 0.5,
-
-	previewSize: "medium",
-	detailLevel: "medium",
-	autoPinPreviews: false,
-
-	highlightActivePath: true,
-	showAllPaths: false,
-
-	offViewportOptimization: true,
-	distanceBasedDetail: true,
-	maxFps: 60,
-};
-
-// Preset configurations
-const performancePresets = {
-	low: {
-		animationsEnabled: true,
-		animationSpeed: 0.5,
-		particleDensity: 0.2,
-		detailLevel: "low",
-		offViewportOptimization: true,
-		distanceBasedDetail: true,
-		maxFps: 30,
-	},
-	medium: {
-		animationsEnabled: true,
-		animationSpeed: 1,
-		particleDensity: 0.5,
-		detailLevel: "medium",
-		offViewportOptimization: true,
-		distanceBasedDetail: true,
-		maxFps: 60,
-	},
-	high: {
-		animationsEnabled: true,
-		animationSpeed: 1.5,
-		particleDensity: 1,
-		detailLevel: "high",
-		offViewportOptimization: true,
-		distanceBasedDetail: true,
-		maxFps: 60,
-	},
-	max: {
-		animationsEnabled: true,
-		animationSpeed: 2,
-		particleDensity: 1,
-		detailLevel: "high",
-		offViewportOptimization: false,
-		distanceBasedDetail: false,
-		maxFps: 120,
-	},
-};
-
-// Local storage key
-const STORAGE_KEY = "dataflow-visualization-settings";
-
-// Main control panel component
+// Control panel props
 interface VisualizationControlPanelProps {
 	defaultPosition?: { x: number; y: number };
-	onSettingsChange?: (settings: VisualizationSettings) => void;
+	alwaysVisible?: boolean;
+	placement?: "top-right" | "top-left" | "bottom-right" | "bottom-left" | "floating";
+	className?: string;
 }
 
-const VisualizationControlPanel: React.FC<VisualizationControlPanelProps> = ({ defaultPosition = { x: 20, y: 20 }, onSettingsChange }) => {
-	const { settings: performanceSettings, updateSettings } = usePerformanceOptimizer();
-	const [settings, setSettings] = useState<VisualizationSettings>(defaultSettings);
-	const [isExpanded, setIsExpanded] = useState<boolean>(false);
-	const [activeSection, setActiveSection] = useState<string>("animation");
+// Separated complexity badge component to avoid hook ordering issues
+const ComplexityBadge = () => {
+	// Using a try-catch to gracefully handle any errors with the hook
+	try {
+		// Import this only inside the component to avoid hook ordering issues
+		const { useWorkflowPerformance } = require("./PerformanceManager");
+		const { getWorkflowComplexity } = useWorkflowPerformance();
+
+		const complexity = getWorkflowComplexity();
+
+		return (
+			<span
+				className={`complexity-badge ${complexity.level}`}
+				title={`Workflow complexity: ${complexity.score.toFixed(1)}/100\nNodes: ${complexity.nodeCount}\nEdges: ${complexity.edgeCount}`}>
+				{complexity.level}
+			</span>
+		);
+	} catch (error) {
+		console.error("Error rendering complexity badge:", error);
+		return <span className="complexity-badge simple">simple</span>;
+	}
+};
+
+// The main control panel component
+const VisualizationControlPanel: React.FC<VisualizationControlPanelProps> = ({
+	defaultPosition = { x: 20, y: 20 },
+	alwaysVisible = false,
+	placement = "floating",
+	className = "",
+}) => {
+	// Core hooks - keep these at the top level
+	const { togglePanel, isPanelOpen, categories, activeCategoryId, setActiveCategoryId, showAdvancedSettings, setShowAdvancedSettings } = useVisualizationConfig();
+
+	// State for draggable panel
 	const [position, setPosition] = useState(defaultPosition);
 	const [isDragging, setIsDragging] = useState(false);
 	const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+	const panelRef = useRef<HTMLDivElement>(null);
 
-	// Load saved settings from local storage
+	// Load position from local storage
 	useEffect(() => {
-		try {
-			const savedSettings = localStorage.getItem(STORAGE_KEY);
-			if (savedSettings) {
-				const parsedSettings = JSON.parse(savedSettings);
-				setSettings((prevSettings) => ({
-					...prevSettings,
-					...parsedSettings,
-				}));
-
-				// Update performance optimizer settings
-				updateSettings({
-					animationsEnabled: parsedSettings.animationsEnabled,
-					animationSpeed: parsedSettings.animationSpeed,
-					particleDensity: parsedSettings.particleDensity,
-					detailLevel: parsedSettings.detailLevel,
-					offViewportOptimization: parsedSettings.offViewportOptimization,
-					distanceBasedDetail: parsedSettings.distanceBasedDetail,
-					maxFps: parsedSettings.maxFps,
-				});
+		if (placement === "floating") {
+			const savedPosition = localStorage.getItem("visualization-panel-position");
+			if (savedPosition) {
+				try {
+					setPosition(JSON.parse(savedPosition));
+				} catch (error) {
+					console.error("Failed to parse saved panel position", error);
+				}
 			}
-		} catch (error) {
-			console.error("Error loading visualization settings:", error);
 		}
-	}, [updateSettings]);
+	}, [placement]);
 
-	// Save settings to local storage when they change
+	// Save position to local storage when it changes
 	useEffect(() => {
-		try {
-			localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
-
-			// Update performance optimizer settings
-			updateSettings({
-				animationsEnabled: settings.animationsEnabled,
-				animationSpeed: settings.animationSpeed,
-				particleDensity: settings.particleDensity,
-				detailLevel: settings.detailLevel,
-				offViewportOptimization: settings.offViewportOptimization,
-				distanceBasedDetail: settings.distanceBasedDetail,
-				maxFps: settings.maxFps,
-			});
-
-			// Notify parent if needed
-			if (onSettingsChange) {
-				onSettingsChange(settings);
-			}
-		} catch (error) {
-			console.error("Error saving visualization settings:", error);
+		if (placement === "floating") {
+			localStorage.setItem("visualization-panel-position", JSON.stringify(position));
 		}
-	}, [settings, updateSettings, onSettingsChange]);
+	}, [position, placement]);
 
-	// Handle setting changes
-	const handleSettingChange = useCallback((key: keyof VisualizationSettings, value: any) => {
-		setSettings((prev) => ({
-			...prev,
-			[key]: value,
-		}));
-	}, []);
-
-	// Apply a preset
-	const applyPreset = useCallback((presetName: keyof typeof performancePresets) => {
-		const preset = performancePresets[presetName];
-		setSettings((prev) => ({
-			...prev,
-			...(preset as Partial<VisualizationSettings>),
-		}));
-	}, []);
-
-	// Dragging functionality
+	// Handle mouse down for dragging
 	const handleMouseDown = useCallback(
 		(e: React.MouseEvent) => {
+			if (placement !== "floating" || !panelRef.current) return;
+
 			setIsDragging(true);
+			const rect = panelRef.current.getBoundingClientRect();
 			setDragOffset({
-				x: e.clientX - position.x,
-				y: e.clientY - position.y,
+				x: e.clientX - rect.left,
+				y: e.clientY - rect.top,
 			});
+
+			// Prevent text selection during drag
+			e.preventDefault();
 		},
-		[position]
+		[placement]
 	);
 
+	// Handle mouse move for dragging
 	useEffect(() => {
+		if (!isDragging) return;
+
 		const handleMouseMove = (e: MouseEvent) => {
-			if (isDragging) {
-				setPosition({
-					x: e.clientX - dragOffset.x,
-					y: e.clientY - dragOffset.y,
-				});
-			}
+			setPosition({
+				x: e.clientX - dragOffset.x,
+				y: e.clientY - dragOffset.y,
+			});
 		};
 
 		const handleMouseUp = () => {
 			setIsDragging(false);
 		};
 
-		if (isDragging) {
-			document.addEventListener("mousemove", handleMouseMove);
-			document.addEventListener("mouseup", handleMouseUp);
-		}
+		document.addEventListener("mousemove", handleMouseMove);
+		document.addEventListener("mouseup", handleMouseUp);
 
 		return () => {
 			document.removeEventListener("mousemove", handleMouseMove);
@@ -205,422 +112,358 @@ const VisualizationControlPanel: React.FC<VisualizationControlPanelProps> = ({ d
 		};
 	}, [isDragging, dragOffset]);
 
-	// Panel style
-	const panelStyle: React.CSSProperties = {
-		position: "absolute",
-		top: `${position.y}px`,
-		left: `${position.x}px`,
-		zIndex: 1000,
-		background: "white",
-		borderRadius: "6px",
-		boxShadow: "0 2px 10px rgba(0, 0, 0, 0.1)",
-		border: "1px solid #eee",
-		width: isExpanded ? "300px" : "auto",
-		transition: "width 0.3s ease",
-		overflow: "hidden",
-		userSelect: "none",
+	// Get styles based on placement
+	const getPanelStyles = () => {
+		if (placement === "floating") {
+			return {
+				position: "absolute",
+				left: `${position.x}px`,
+				top: `${position.y}px`,
+				zIndex: 1000,
+			} as React.CSSProperties;
+		}
+
+		const styles: React.CSSProperties = {
+			position: "absolute",
+			zIndex: 1000,
+		};
+
+		if (placement.startsWith("top")) {
+			styles.top = "20px";
+		} else {
+			styles.bottom = "20px";
+		}
+
+		if (placement.endsWith("right")) {
+			styles.right = "20px";
+		} else {
+			styles.left = "20px";
+		}
+
+		return styles;
 	};
 
-	// Header style for drag handle
-	const headerStyle: React.CSSProperties = {
-		padding: "8px 12px",
-		background: "#f8f9fa",
-		borderBottom: isExpanded ? "1px solid #eee" : "none",
-		display: "flex",
-		justifyContent: "space-between",
-		alignItems: "center",
-		cursor: "move",
-	};
+	// Auto-optimize handler - defined safely with a try/catch
+	const handleAutoOptimize = useCallback(() => {
+		try {
+			// Dynamically import to avoid hook ordering issues
+			const { useWorkflowPerformance } = require("./PerformanceManager");
+			const { optimizeForComplexity } = useWorkflowPerformance();
+			const complexity = optimizeForComplexity();
+			console.log(`Workflow optimized for complexity level: ${complexity.level} (${complexity.score.toFixed(1)})`);
+		} catch (error) {
+			console.error("Error optimizing workflow:", error);
+		}
+	}, []);
+
+	if (!isPanelOpen && !alwaysVisible) {
+		// Render just the toggle button when closed
+		return (
+			<div
+				className={`visualization-toggle-button ${className}`}
+				style={{
+					position: "absolute",
+					zIndex: 1000,
+					bottom: "20px",
+					right: "20px",
+					cursor: "pointer",
+				}}
+				onClick={togglePanel}>
+				<div className="toggle-icon">
+					<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+						<path d="M12 4V20M4 12H20" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+					</svg>
+				</div>
+				<span className="toggle-label">Visualization</span>
+			</div>
+		);
+	}
 
 	return (
-		<div className="visualization-control-panel" style={panelStyle}>
-			<div className="panel-header" style={headerStyle} onMouseDown={handleMouseDown}>
-				<span className="panel-title">Visualization Controls</span>
-				<button className="panel-toggle-button" onClick={() => setIsExpanded(!isExpanded)}>
-					{isExpanded ? "−" : "+"}
-				</button>
+		<div ref={panelRef} className={`visualization-control-panel ${className}`} style={getPanelStyles()}>
+			<div className="panel-header" onMouseDown={handleMouseDown}>
+				<h3 className="panel-title">Visualization Controls</h3>
+
+				<div className="panel-actions">
+					<button className="action-button auto-optimize-button" onClick={handleAutoOptimize} title="Auto-optimize settings based on workflow complexity">
+						<svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+							<path
+								d="M12 16V12M12 8H12.01M22 12C22 17.5228 17.5228 22 12 22C6.47715 22 2 17.5228 2 12C2 6.47715 6.47715 2 12 2C17.5228 2 22 6.47715 22 12Z"
+								stroke="currentColor"
+								strokeWidth="2"
+								strokeLinecap="round"
+								strokeLinejoin="round"
+							/>
+						</svg>
+					</button>
+					{!alwaysVisible && (
+						<button className="action-button close-button" onClick={togglePanel} title="Close panel">
+							<svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+								<path d="M18 6L6 18M6 6L18 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+							</svg>
+						</button>
+					)}
+				</div>
 			</div>
 
-			{isExpanded && (
-				<div className="panel-content">
-					<div className="panel-tabs">
-						<button className={`panel-tab ${activeSection === "animation" ? "active" : ""}`} onClick={() => setActiveSection("animation")}>
-							Animation
-						</button>
-						<button className={`panel-tab ${activeSection === "preview" ? "active" : ""}`} onClick={() => setActiveSection("preview")}>
-							Preview
-						</button>
-						<button className={`panel-tab ${activeSection === "path" ? "active" : ""}`} onClick={() => setActiveSection("path")}>
-							Path
-						</button>
-						<button className={`panel-tab ${activeSection === "performance" ? "active" : ""}`} onClick={() => setActiveSection("performance")}>
-							Performance
-						</button>
-					</div>
-
-					<div className="panel-section">
-						{activeSection === "animation" && (
-							<div className="animation-controls">
-								<div className="control-group">
-									<label className="control-label">
-										<input type="checkbox" checked={settings.animationsEnabled} onChange={(e) => handleSettingChange("animationsEnabled", e.target.checked)} />
-										Enable Animations
-									</label>
-								</div>
-
-								<div className="control-group">
-									<label className="control-label">Animation Speed</label>
-									<div className="control-slider-container">
-										<input
-											type="range"
-											min="0.1"
-											max="2"
-											step="0.1"
-											value={settings.animationSpeed}
-											onChange={(e) => handleSettingChange("animationSpeed", parseFloat(e.target.value))}
-											disabled={!settings.animationsEnabled}
-										/>
-										<span className="control-value">{settings.animationSpeed.toFixed(1)}x</span>
-									</div>
-								</div>
-
-								<div className="control-group">
-									<label className="control-label">Particle Density</label>
-									<div className="control-slider-container">
-										<input
-											type="range"
-											min="0"
-											max="1"
-											step="0.1"
-											value={settings.particleDensity}
-											onChange={(e) => handleSettingChange("particleDensity", parseFloat(e.target.value))}
-											disabled={!settings.animationsEnabled}
-										/>
-										<span className="control-value">{Math.round(settings.particleDensity * 100)}%</span>
-									</div>
-								</div>
-							</div>
-						)}
-
-						{activeSection === "preview" && (
-							<div className="preview-controls">
-								<div className="control-group">
-									<label className="control-label">Preview Size</label>
-									<div className="control-radio-group">
-										<label className="radio-label">
-											<input
-												type="radio"
-												name="previewSize"
-												value="small"
-												checked={settings.previewSize === "small"}
-												onChange={() => handleSettingChange("previewSize", "small")}
-											/>
-											Small
-										</label>
-										<label className="radio-label">
-											<input
-												type="radio"
-												name="previewSize"
-												value="medium"
-												checked={settings.previewSize === "medium"}
-												onChange={() => handleSettingChange("previewSize", "medium")}
-											/>
-											Medium
-										</label>
-										<label className="radio-label">
-											<input
-												type="radio"
-												name="previewSize"
-												value="large"
-												checked={settings.previewSize === "large"}
-												onChange={() => handleSettingChange("previewSize", "large")}
-											/>
-											Large
-										</label>
-									</div>
-								</div>
-
-								<div className="control-group">
-									<label className="control-label">Detail Level</label>
-									<div className="control-radio-group">
-										<label className="radio-label">
-											<input
-												type="radio"
-												name="detailLevel"
-												value="low"
-												checked={settings.detailLevel === "low"}
-												onChange={() => handleSettingChange("detailLevel", "low")}
-											/>
-											Low
-										</label>
-										<label className="radio-label">
-											<input
-												type="radio"
-												name="detailLevel"
-												value="medium"
-												checked={settings.detailLevel === "medium"}
-												onChange={() => handleSettingChange("detailLevel", "medium")}
-											/>
-											Medium
-										</label>
-										<label className="radio-label">
-											<input
-												type="radio"
-												name="detailLevel"
-												value="high"
-												checked={settings.detailLevel === "high"}
-												onChange={() => handleSettingChange("detailLevel", "high")}
-											/>
-											High
-										</label>
-									</div>
-								</div>
-
-								<div className="control-group">
-									<label className="control-label">
-										<input type="checkbox" checked={settings.autoPinPreviews} onChange={(e) => handleSettingChange("autoPinPreviews", e.target.checked)} />
-										Auto-pin Data Previews
-									</label>
-								</div>
-							</div>
-						)}
-
-						{activeSection === "path" && (
-							<div className="path-controls">
-								<div className="control-group">
-									<label className="control-label">
-										<input
-											type="checkbox"
-											checked={settings.highlightActivePath}
-											onChange={(e) => handleSettingChange("highlightActivePath", e.target.checked)}
-										/>
-										Highlight Active Path
-									</label>
-								</div>
-
-								<div className="control-group">
-									<label className="control-label">
-										<input type="checkbox" checked={settings.showAllPaths} onChange={(e) => handleSettingChange("showAllPaths", e.target.checked)} />
-										Show All Execution Paths
-									</label>
-								</div>
-							</div>
-						)}
-
-						{activeSection === "performance" && (
-							<div className="performance-controls">
-								<div className="control-group">
-									<label className="control-label">Performance Preset</label>
-									<div className="preset-buttons">
-										<button
-											className={`preset-button preset-low ${JSON.stringify(performancePresets.low) === JSON.stringify(settings) ? "active" : ""}`}
-											onClick={() => applyPreset("low")}>
-											Low
-										</button>
-										<button
-											className={`preset-button preset-medium ${JSON.stringify(performancePresets.medium) === JSON.stringify(settings) ? "active" : ""}`}
-											onClick={() => applyPreset("medium")}>
-											Medium
-										</button>
-										<button
-											className={`preset-button preset-high ${JSON.stringify(performancePresets.high) === JSON.stringify(settings) ? "active" : ""}`}
-											onClick={() => applyPreset("high")}>
-											High
-										</button>
-										<button
-											className={`preset-button preset-max ${JSON.stringify(performancePresets.max) === JSON.stringify(settings) ? "active" : ""}`}
-											onClick={() => applyPreset("max")}>
-											Max
-										</button>
-									</div>
-								</div>
-
-								<div className="control-group">
-									<label className="control-label">
-										<input
-											type="checkbox"
-											checked={settings.offViewportOptimization}
-											onChange={(e) => handleSettingChange("offViewportOptimization", e.target.checked)}
-										/>
-										Optimize Off-viewport Elements
-									</label>
-								</div>
-
-								<div className="control-group">
-									<label className="control-label">
-										<input
-											type="checkbox"
-											checked={settings.distanceBasedDetail}
-											onChange={(e) => handleSettingChange("distanceBasedDetail", e.target.checked)}
-										/>
-										Distance-based Detail Reduction
-									</label>
-								</div>
-
-								<div className="control-group">
-									<label className="control-label">Max FPS</label>
-									<div className="control-slider-container">
-										<input
-											type="range"
-											min="15"
-											max="120"
-											step="15"
-											value={settings.maxFps}
-											onChange={(e) => handleSettingChange("maxFps", parseInt(e.target.value))}
-										/>
-										<span className="control-value">{settings.maxFps}</span>
-									</div>
-								</div>
-							</div>
-						)}
+			<div className="panel-content">
+				{/* Presets section */}
+				<div className="config-presets">
+					<h3 className="config-presets-title">Presets</h3>
+					<div className="config-presets-list">
+						{["performance", "balanced", "visual", "minimal", "analysis"].map((preset) => (
+							<button key={preset} className="config-preset-button">
+								{preset}
+							</button>
+						))}
 					</div>
 				</div>
-			)}
+
+				<div className="panel-categories-tabs">
+					{categories.map((category) => (
+						<button key={category.id} className={`category-tab ${activeCategoryId === category.id ? "active" : ""}`} onClick={() => setActiveCategoryId(category.id)}>
+							{category.label}
+						</button>
+					))}
+				</div>
+
+				<div className="panel-category-content">
+					{/* For now, just use a placeholder for the actual content */}
+					<div className="category-placeholder">Category settings for {activeCategoryId}</div>
+				</div>
+
+				<div className="panel-footer">
+					<label className="advanced-settings-toggle">
+						<input type="checkbox" checked={showAdvancedSettings} onChange={(e) => setShowAdvancedSettings(e.target.checked)} />
+						Show Advanced Settings
+					</label>
+
+					<div className="workflow-complexity-indicator">
+						{/* Use the separated component */}
+						<ComplexityBadge />
+					</div>
+				</div>
+			</div>
+
+			<style>{`
+				.visualization-control-panel {
+					width: 320px;
+					background: white;
+					border-radius: 8px;
+					box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+					border: 1px solid #e1e4e8;
+					overflow: hidden;
+					font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
+					color: #24292e;
+					transition: all 0.3s ease;
+				}
+
+				.panel-header {
+					padding: 12px 16px;
+					background: #f6f8fa;
+					border-bottom: 1px solid #e1e4e8;
+					display: flex;
+					justify-content: space-between;
+					align-items: center;
+					cursor: ${placement === "floating" ? "move" : "default"};
+					user-select: none;
+				}
+
+				.panel-title {
+					margin: 0;
+					font-size: 14px;
+					font-weight: 600;
+				}
+
+				.panel-actions {
+					display: flex;
+					gap: 8px;
+				}
+
+				.action-button {
+					width: 24px;
+					height: 24px;
+					border-radius: 4px;
+					background: transparent;
+					border: none;
+					display: flex;
+					align-items: center;
+					justify-content: center;
+					cursor: pointer;
+					color: #57606a;
+					transition: all 0.2s ease;
+				}
+
+				.action-button:hover {
+					background: #e1e4e8;
+					color: #24292e;
+				}
+
+				.panel-content {
+					padding: 16px;
+					max-height: 600px;
+					overflow-y: auto;
+				}
+
+				.panel-categories-tabs {
+					display: flex;
+					gap: 4px;
+					margin: 16px 0;
+					border-bottom: 1px solid #e1e4e8;
+				}
+
+				.category-tab {
+					padding: 6px 12px;
+					background: transparent;
+					border: none;
+					cursor: pointer;
+					font-size: 13px;
+					color: #57606a;
+					border-bottom: 2px solid transparent;
+					transition: all 0.2s ease;
+				}
+
+				.category-tab:hover {
+					color: #0969da;
+				}
+
+				.category-tab.active {
+					color: #0969da;
+					border-bottom-color: #0969da;
+					font-weight: 500;
+				}
+
+				.panel-category-content {
+					margin-top: 12px;
+				}
+
+				.category-placeholder {
+					background: #f6f8fa;
+					padding: 20px;
+					border-radius: 6px;
+					text-align: center;
+					color: #57606a;
+					font-size: 14px;
+				}
+
+				.panel-footer {
+					margin-top: 20px;
+					padding-top: 12px;
+					border-top: 1px solid #e1e4e8;
+					display: flex;
+					justify-content: space-between;
+					align-items: center;
+					font-size: 12px;
+				}
+
+				.advanced-settings-toggle {
+					display: flex;
+					align-items: center;
+					gap: 6px;
+					cursor: pointer;
+					user-select: none;
+				}
+
+				.workflow-complexity-indicator {
+					display: flex;
+					align-items: center;
+				}
+
+				.complexity-badge {
+					font-size: 11px;
+					padding: 2px 6px;
+					border-radius: 10px;
+					font-weight: 500;
+					text-transform: capitalize;
+				}
+
+				.complexity-badge.simple {
+					background: #dafbe1;
+					color: #0a6c2f;
+				}
+
+				.complexity-badge.moderate {
+					background: #fff8c5;
+					color: #9a6700;
+				}
+
+				.complexity-badge.complex {
+					background: #ffebe9;
+					color: #bc4c00;
+				}
+
+				.complexity-badge.very-complex {
+					background: #ffebe9;
+					color: #cf222e;
+				}
+
+				.visualization-toggle-button {
+					display: flex;
+					align-items: center;
+					background: white;
+					padding: 8px 12px;
+					border-radius: 20px;
+					box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+					border: 1px solid #e1e4e8;
+					transition: all 0.3s ease;
+				}
+
+				.visualization-toggle-button:hover {
+					transform: translateY(-1px);
+					box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+				}
+
+				.toggle-icon {
+					margin-right: 6px;
+					color: #0969da;
+				}
+
+				.toggle-label {
+					font-size: 13px;
+					font-weight: 500;
+					color: #24292e;
+				}
+
+				.config-presets {
+					margin-bottom: 16px;
+				}
+
+				.config-presets-title {
+					font-size: 14px;
+					font-weight: 600;
+					margin: 0 0 8px 0;
+				}
+
+				.config-presets-list {
+					display: flex;
+					flex-wrap: wrap;
+					gap: 8px;
+				}
+
+				.config-preset-button {
+					flex: 1;
+					min-width: 80px;
+					padding: 6px 10px;
+					background: #f6f8fa;
+					border: 1px solid #e1e4e8;
+					border-radius: 6px;
+					font-size: 12px;
+					cursor: pointer;
+					display: flex;
+					align-items: center;
+					justify-content: center;
+					transition: all 0.2s ease;
+					text-transform: capitalize;
+				}
+
+				.config-preset-button:hover {
+					background: #0969da;
+					border-color: #0969da;
+					color: white;
+				}
+			`}</style>
 		</div>
 	);
 };
-
-// CSS to be included
-/*
-.visualization-control-panel {
-  font-family: sans-serif;
-  font-size: 14px;
-}
-
-.panel-header {
-  font-weight: 500;
-}
-
-.panel-toggle-button {
-  background: none;
-  border: none;
-  width: 24px;
-  height: 24px;
-  font-size: 18px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #555;
-}
-
-.panel-content {
-  padding: 12px;
-}
-
-.panel-tabs {
-  display: flex;
-  margin-bottom: 12px;
-  border-bottom: 1px solid #eee;
-}
-
-.panel-tab {
-  background: none;
-  border: none;
-  padding: 8px 12px;
-  font-size: 12px;
-  cursor: pointer;
-  opacity: 0.7;
-  transition: opacity 0.2s, border-bottom 0.2s;
-}
-
-.panel-tab.active {
-  opacity: 1;
-  border-bottom: 2px solid #3498db;
-}
-
-.panel-tab:hover {
-  opacity: 1;
-}
-
-.control-group {
-  margin-bottom: 16px;
-}
-
-.control-label {
-  display: block;
-  margin-bottom: 6px;
-  font-size: 13px;
-  color: #333;
-}
-
-.control-slider-container {
-  display: flex;
-  align-items: center;
-}
-
-.control-slider-container input {
-  flex: 1;
-  margin-right: 8px;
-}
-
-.control-value {
-  font-size: 12px;
-  color: #555;
-  min-width: 32px;
-  text-align: right;
-}
-
-.control-radio-group {
-  display: flex;
-  gap: 12px;
-}
-
-.radio-label {
-  display: flex;
-  align-items: center;
-  font-size: 12px;
-}
-
-.radio-label input {
-  margin-right: 4px;
-}
-
-.preset-buttons {
-  display: flex;
-  gap: 4px;
-}
-
-.preset-button {
-  flex: 1;
-  padding: 6px 8px;
-  background: #f1f3f5;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 12px;
-  transition: all 0.2s;
-}
-
-.preset-button:hover {
-  background: #e9ecef;
-}
-
-.preset-button.active {
-  background: #3498db;
-  color: white;
-  border-color: #2980b9;
-}
-
-.preset-low.active {
-  background: #e74c3c;
-  border-color: #c0392b;
-}
-
-.preset-medium.active {
-  background: #f39c12;
-  border-color: #d35400;
-}
-
-.preset-high.active {
-  background: #2ecc71;
-  border-color: #27ae60;
-}
-
-.preset-max.active {
-  background: #9b59b6;
-  border-color: #8e44ad;
-}
-*/
 
 export default VisualizationControlPanel;

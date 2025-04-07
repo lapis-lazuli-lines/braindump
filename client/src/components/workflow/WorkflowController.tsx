@@ -344,12 +344,12 @@ const WorkflowController: React.FC = () => {
 					</ReactFlow>
 				</div>
 				{selectedNode && (
-					<div className="w-64 bg-gray-100 p-4 border-l border-gray-300 overflow-y-auto">
-						<NodeDetailsPanel selectedNode={selectedNode} updateNodeData={updateNodeData} onDeleteNode={removeNode} />
+					<div className="w-[88] bg-white border-l border-gray-300 flex flex-col h-full overflow-hidden">
+						<div className="overflow-y-auto flex-grow">
+							<NodeDetailsPanel selectedNode={selectedNode} updateNodeData={updateNodeData} onDeleteNode={removeNode} />
+						</div>
 					</div>
 				)}
-				{/* Properties Panel */}
-				<NodeDetailsPanel selectedNode={selectedNode} updateNodeData={updateNodeData} onDeleteNode={removeNode} />
 			</div>
 
 			{/* Modals */}

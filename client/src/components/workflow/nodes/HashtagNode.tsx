@@ -1,9 +1,8 @@
 // client/src/components/workflow/nodes/HashtagNode.tsx
 import React, { useState, useEffect, useCallback } from "react";
-import { NodeProps, Position } from "reactflow";
+import { NodeProps } from "reactflow";
 import BaseNode from "./BaseNode";
 import { useWorkflowStore } from "../workflowStore";
-import { EnhancedPortHandle } from "../visualization/core/PortActivityIndicator";
 import { useDataSnapshotRegistration } from "../visualization/core/TransformationVisualizer";
 
 const HashtagNode: React.FC<NodeProps> = (props) => {
@@ -288,21 +287,17 @@ const HashtagNode: React.FC<NodeProps> = (props) => {
 		);
 	};
 
+	// Hashtag icon
+	const hashtagIcon = (
+		<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+			<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 20l4-16m2 16l4-16M6 9h14M4 15h14" />
+		</svg>
+	);
+
 	return (
-		<>
-			{/* Input handles */}
-			<EnhancedPortHandle type="target" position={Position.Left} id="draft" nodeId={id} index={0} dataType="draft" label="Content" />
-
-			<EnhancedPortHandle type="target" position={Position.Top} id="idea" nodeId={id} index={1} dataType="idea" label="Idea" />
-
-			{/* The node itself */}
-			<BaseNode {...props} title="Hashtag Generator" color="#0891b2">
-				{isEditing ? renderEditingUI() : renderNormalUI()}
-			</BaseNode>
-
-			{/* Output handle */}
-			<EnhancedPortHandle type="source" position={Position.Right} id="hashtags" nodeId={id} index={0} dataType="hashtag_set" label="Hashtags" />
-		</>
+		<BaseNode {...props} title="Hashtag Generator" color="#0891b2" icon={hashtagIcon}>
+			{isEditing ? renderEditingUI() : renderNormalUI()}
+		</BaseNode>
 	);
 };
 

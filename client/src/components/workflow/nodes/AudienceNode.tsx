@@ -1,9 +1,8 @@
 // client/src/components/workflow/nodes/AudienceNode.tsx
 import React, { useState, useCallback } from "react";
-import { NodeProps, Position } from "reactflow";
+import { NodeProps } from "reactflow";
 import BaseNode from "./BaseNode";
 import { useWorkflowStore } from "../workflowStore";
-import { EnhancedPortHandle } from "../visualization/core/PortActivityIndicator";
 
 const AudienceNode: React.FC<NodeProps> = (props) => {
 	const { id, data } = props;
@@ -99,20 +98,23 @@ const AudienceNode: React.FC<NodeProps> = (props) => {
 		);
 	};
 
-	// Rendering the node with only two simplified connectors
+	// Audience icon
+	const audienceIcon = (
+		<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+			<path
+				strokeLinecap="round"
+				strokeLinejoin="round"
+				strokeWidth={2}
+				d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"
+			/>
+		</svg>
+	);
+
+	// Rendering the node with no connectors
 	return (
-		<>
-			{/* Input handle - single entry point */}
-			<EnhancedPortHandle type="target" position={Position.Left} id="input" index={0} nodeId={id} />
-
-			{/* The node itself */}
-			<BaseNode {...props} title="Target Audience" color="#7C3AED" onEditStart={startEditing}>
-				{renderViewContent()}
-			</BaseNode>
-
-			{/* Output handle - single exit point */}
-			<EnhancedPortHandle index={0} type="source" position={Position.Right} id="output" nodeId={id} />
-		</>
+		<BaseNode {...props} title="Target Audience" color="#7C3AED" onEditStart={startEditing} icon={audienceIcon}>
+			{renderViewContent()}
+		</BaseNode>
 	);
 };
 

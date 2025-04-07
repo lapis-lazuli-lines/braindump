@@ -1,9 +1,8 @@
 // client/src/components/workflow/nodes/AnalyticsNode.tsx
 import React, { useState, useEffect, useCallback } from "react";
-import { NodeProps, Position } from "reactflow";
+import { NodeProps } from "reactflow";
 import BaseNode from "./BaseNode";
 import { useWorkflowStore } from "../workflowStore";
-import { EnhancedPortHandle } from "../visualization/core/PortActivityIndicator";
 import { useDataSnapshotRegistration } from "../visualization/core/TransformationVisualizer";
 
 // Analytics metric type
@@ -490,16 +489,22 @@ const AnalyticsNode: React.FC<NodeProps> = (props) => {
 		);
 	};
 
-	return (
-		<>
-			{/* Input handle */}
-			<EnhancedPortHandle type="target" position={Position.Left} id="content" nodeId={id} index={0} dataType="combined_content" label="Content" />
+	// Analytics icon
+	const analyticsIcon = (
+		<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+			<path
+				strokeLinecap="round"
+				strokeLinejoin="round"
+				strokeWidth={2}
+				d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
+			/>
+		</svg>
+	);
 
-			{/* The node itself */}
-			<BaseNode {...props} title="Analytics Tracking" color="#6366f1">
-				{isEditing ? renderEditingUI() : renderNormalUI()}
-			</BaseNode>
-		</>
+	return (
+		<BaseNode {...props} title="Analytics Tracking" color="#6366f1" icon={analyticsIcon}>
+			{isEditing ? renderEditingUI() : renderNormalUI()}
+		</BaseNode>
 	);
 };
 

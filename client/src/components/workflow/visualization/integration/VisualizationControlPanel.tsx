@@ -1,7 +1,6 @@
-// src/components/workflow/visualization/integration/VisualizationControlPanel.tsx
+// src/components/workflow/visualization/core/VisualizationControlPanel.tsx
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { useVisualizationConfig, ConfigurationCategory, ConfigurationPresets } from "./ConfigurationProvider";
-import { useWorkflowPerformance } from "./PerformanceManager";
+import { useVisualizationConfig } from "../integration/ConfigurationProvider";
 
 // Control panel props
 interface VisualizationControlPanelProps {
@@ -11,6 +10,39 @@ interface VisualizationControlPanelProps {
 	className?: string;
 }
 
+// Separated complexity badge component to avoid hook ordering issues
+const ComplexityBadge = () => {
+	// Using a try-catch to gracefully handle any errors with the hook
+	try {
+		// Import this only inside the component to avoid hook ordering issues
+		const { useWorkflowPerformance } = require("./PerformanceManager");
+		const { getWorkflowComplexity } = useWorkflowPerformance();
+
+		const complexity: { level: keyof typeof badgeClasses; score: number; nodeCount: number; edgeCount: number } = getWorkflowComplexity();
+
+		// Map complexity level to tailwind classes
+		const badgeClasses = {
+			simple: "bg-green-100 text-green-800",
+			moderate: "bg-yellow-100 text-yellow-800",
+			complex: "bg-orange-100 text-orange-800",
+			"very-complex": "bg-red-100 text-red-800",
+		};
+
+		return (
+			<span
+				className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+					badgeClasses[complexity.level as keyof typeof badgeClasses] || badgeClasses.simple
+				}`}
+				title={`Workflow complexity: ${complexity.score.toFixed(1)}/100\nNodes: ${complexity.nodeCount}\nEdges: ${complexity.edgeCount}`}>
+				{complexity.level}
+			</span>
+		);
+	} catch (error) {
+		console.error("Error rendering complexity badge:", error);
+		return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">simple</span>;
+	}
+};
+
 // The main control panel component
 const VisualizationControlPanel: React.FC<VisualizationControlPanelProps> = ({
 	defaultPosition = { x: 20, y: 20 },
@@ -18,9 +50,20 @@ const VisualizationControlPanel: React.FC<VisualizationControlPanelProps> = ({
 	placement = "floating",
 	className = "",
 }) => {
-	const { togglePanel, isPanelOpen, categories, activeCategoryId, setActiveCategoryId, showAdvancedSettings, setShowAdvancedSettings } = useVisualizationConfig();
-
-	const { getWorkflowComplexity, optimizeForComplexity } = useWorkflowPerformance();
+	// Core hooks - keep these at the top level
+	const {
+		togglePanel,
+		isPanelOpen,
+		categories,
+		activeCategoryId,
+		setActiveCategoryId,
+		showAdvancedSettings,
+		setShowAdvancedSettings,
+		config,
+		updateSetting,
+		applyPreset,
+		presets,
+	} = useVisualizationConfig();
 
 	// State for draggable panel
 	const [position, setPosition] = useState(defaultPosition);
@@ -92,14 +135,14 @@ const VisualizationControlPanel: React.FC<VisualizationControlPanelProps> = ({
 	}, [isDragging, dragOffset]);
 
 	// Get styles based on placement
-	const getPanelStyles = (): React.CSSProperties => {
+	const getPanelStyles = () => {
 		if (placement === "floating") {
 			return {
 				position: "absolute",
 				left: `${position.x}px`,
 				top: `${position.y}px`,
 				zIndex: 1000,
-			};
+			} as React.CSSProperties;
 		}
 
 		const styles: React.CSSProperties = {
@@ -122,384 +165,246 @@ const VisualizationControlPanel: React.FC<VisualizationControlPanelProps> = ({
 		return styles;
 	};
 
-	// Auto-optimize when workflow complexity changes
+	// Auto-optimize handler - defined safely with a try/catch
 	const handleAutoOptimize = useCallback(() => {
-		const complexity = optimizeForComplexity();
-		console.log(`Workflow optimized for complexity level: ${complexity.level} (${complexity.score.toFixed(1)})`);
-	}, [optimizeForComplexity]);
+		try {
+			// Dynamically import to avoid hook ordering issues
+			const { useWorkflowPerformance } = require("./PerformanceManager");
+			const { optimizeForComplexity } = useWorkflowPerformance();
+			const complexity = optimizeForComplexity();
+			console.log(`Workflow optimized for complexity level: ${complexity.level} (${complexity.score.toFixed(1)})`);
+		} catch (error) {
+			console.error("Error optimizing workflow:", error);
+		}
+	}, []);
+
+	// Define preset icons
+	const presetIcons: { [key: string]: string } = {
+		performance: "⚡",
+		balanced: "⚖️",
+		visual: "🎨",
+		minimal: "🔍",
+		analysis: "📊",
+	};
 
 	if (!isPanelOpen && !alwaysVisible) {
 		// Render just the toggle button when closed
 		return (
 			<div
-				className={`visualization-toggle-button ${className}`}
-				style={{
-					position: "absolute",
-					zIndex: 1000,
-					bottom: "20px",
-					right: "20px",
-					cursor: "pointer",
-				}}
+				className="fixed bottom-6 right-6 z-50 flex items-center bg-white px-3 py-2 rounded-full shadow-md border border-gray-200 hover:shadow-lg transition-all duration-300 transform hover:-translate-y-1 cursor-pointer"
 				onClick={togglePanel}>
-				<div className="toggle-icon">
-					<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+				<div className="text-blue-500 mr-2">
+					<svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
 						<path d="M12 4V20M4 12H20" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
 					</svg>
 				</div>
-				<span className="toggle-label">Visualization</span>
+				<span className="text-sm font-medium text-gray-800">Visualization</span>
 			</div>
 		);
 	}
 
-	return (
-		<div ref={panelRef} className={`visualization-control-panel ${className}`} style={getPanelStyles()}>
-			<div className="panel-header" onMouseDown={handleMouseDown}>
-				<h3 className="panel-title">Visualization Controls</h3>
+	// Render the Setting UI based on type
+	const renderSetting = (settingId: keyof typeof config, setting: any) => {
+		const value = config[settingId];
 
-				<div className="panel-actions">
-					<button className="action-button auto-optimize-button" onClick={handleAutoOptimize} title="Auto-optimize settings based on workflow complexity">
-						<svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+		switch (setting.type) {
+			case "boolean":
+				return (
+					<div className="flex items-center justify-between py-2" key={settingId}>
+						<label className="text-sm font-medium text-gray-700">{setting.label}</label>
+						<div className="relative inline-block w-10 mr-2 align-middle select-none">
+							<input
+								type="checkbox"
+								checked={value as boolean}
+								onChange={(e) => updateSetting(settingId, e.target.checked)}
+								className="sr-only peer"
+								id={`setting-${settingId}`}
+							/>
+							<label
+								htmlFor={`setting-${settingId}`}
+								className="block overflow-hidden h-5 rounded-full cursor-pointer 
+									bg-gray-300 peer-checked:bg-blue-500 transition-colors duration-200 ease-in">
+								<span
+									className="block h-5 w-5 rounded-full bg-white shadow transform 
+										transition-transform duration-200 ease-in peer-checked:translate-x-5"></span>
+							</label>
+						</div>
+					</div>
+				);
+
+			case "range":
+				return (
+					<div className="py-2" key={settingId}>
+						<div className="flex justify-between mb-1">
+							<label className="text-sm font-medium text-gray-700">{setting.label}</label>
+							<span className="text-xs text-gray-500">{typeof value === "number" ? value.toFixed(1) : value}</span>
+						</div>
+						<input
+							type="range"
+							min={setting.min || 0}
+							max={setting.max || 100}
+							step={setting.step || 1}
+							value={value as number}
+							onChange={(e) => updateSetting(settingId, parseFloat(e.target.value))}
+							className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-500"
+						/>
+						<div className="flex justify-between text-xs text-gray-500 mt-1">
+							<span>{setting.min || 0}</span>
+							<span>{setting.max || 100}</span>
+						</div>
+					</div>
+				);
+
+			case "select":
+				return (
+					<div className="py-2" key={settingId}>
+						<label className="block text-sm font-medium text-gray-700 mb-1">{setting.label}</label>
+						<select
+							value={value as string}
+							onChange={(e) =>
+								updateSetting(settingId, setting.options?.find((option: { value: string }) => option.value === e.target.value)?.value || e.target.value)
+							}
+							className="w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm text-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+							{setting.options?.map((option: any) => (
+								<option key={option.value} value={option.value}>
+									{option.label}
+								</option>
+							))}
+						</select>
+						{setting.description && <p className="mt-1 text-xs text-gray-500">{setting.description}</p>}
+					</div>
+				);
+
+			case "radio":
+				return (
+					<div className="py-2" key={settingId}>
+						<label className="block text-sm font-medium text-gray-700 mb-2">{setting.label}</label>
+						<div className="flex bg-gray-100 p-1 rounded-md">
+							{setting.options?.map((option: any) => (
+								<button
+									key={option.value}
+									onClick={() => updateSetting(settingId, option.value)}
+									className={`flex-1 px-3 py-1.5 text-xs font-medium rounded-md transition-colors
+										${value === option.value ? "bg-white text-gray-800 shadow-sm" : "text-gray-600 hover:text-gray-800"}`}>
+									{option.label}
+								</button>
+							))}
+						</div>
+					</div>
+				);
+
+			default:
+				return null;
+		}
+	};
+
+	// Get settings for the current category
+	const getCategorySettings = (categoryId: string) => {
+		const category = categories.find((c) => c.id === categoryId);
+		if (!category) return [];
+
+		return category.settings.filter((setting) => showAdvancedSettings || !setting.advanced);
+	};
+
+	return (
+		<div
+			ref={panelRef}
+			className={`bg-white rounded-lg shadow-lg border border-gray-200 overflow-hidden w-80 transition-all duration-300 ${className}`}
+			style={getPanelStyles()}>
+			{/* Header */}
+			<div
+				className="flex items-center justify-between p-3 bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200"
+				onMouseDown={handleMouseDown}
+				style={{ cursor: placement === "floating" ? "move" : "default" }}>
+				<h3 className="text-sm font-semibold text-gray-700">Visualization Controls</h3>
+
+				<div className="flex space-x-1">
+					<button
+						className="p-1 rounded hover:bg-gray-200 transition-colors text-gray-500"
+						onClick={handleAutoOptimize}
+						title="Auto-optimize settings based on workflow complexity">
+						<svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
 							<path
 								d="M12 16V12M12 8H12.01M22 12C22 17.5228 17.5228 22 12 22C6.47715 22 2 17.5228 2 12C2 6.47715 6.47715 2 12 2C17.5228 2 22 6.47715 22 12Z"
-								stroke="currentColor"
-								strokeWidth="2"
 								strokeLinecap="round"
 								strokeLinejoin="round"
+								strokeWidth="2"
 							/>
 						</svg>
 					</button>
+
 					{!alwaysVisible && (
-						<button className="action-button close-button" onClick={togglePanel} title="Close panel">
-							<svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-								<path d="M18 6L6 18M6 6L18 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+						<button className="p-1.5 rounded hover:bg-gray-200 transition-colors text-gray-500" onClick={togglePanel} title="Close panel">
+							<svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+								<path d="M18 6L6 18M6 6L18 18" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
 							</svg>
 						</button>
 					)}
 				</div>
 			</div>
 
-			<div className="panel-content">
-				<ConfigurationPresets />
-
-				<div className="panel-categories-tabs">
-					{categories.map((category) => (
-						<button key={category.id} className={`category-tab ${activeCategoryId === category.id ? "active" : ""}`} onClick={() => setActiveCategoryId(category.id)}>
-							{category.label}
-						</button>
-					))}
-				</div>
-
-				<div className="panel-category-content">
-					<ConfigurationCategory categoryId={activeCategoryId} />
-				</div>
-
-				<div className="panel-footer">
-					<label className="advanced-settings-toggle">
-						<input type="checkbox" checked={showAdvancedSettings} onChange={(e) => setShowAdvancedSettings(e.target.checked)} />
-						Show Advanced Settings
-					</label>
-
-					<div className="workflow-complexity-indicator">
-						{(() => {
-							const complexity = getWorkflowComplexity();
-							return (
-								<span
-									className={`complexity-badge ${complexity.level}`}
-									title={`Workflow complexity: ${complexity.score.toFixed(1)}/100\nNodes: ${complexity.nodeCount}\nEdges: ${complexity.edgeCount}`}>
-									{complexity.level}
-								</span>
-							);
-						})()}
+			<div className="p-4 max-h-[calc(100vh-12rem)] overflow-y-auto">
+				{/* Presets section */}
+				<div className="mb-5">
+					<h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Presets</h4>
+					<div className="grid grid-cols-5 gap-2">
+						{presets.map((preset) => (
+							<button
+								key={preset.id}
+								onClick={() => applyPreset(preset.id)}
+								className="flex flex-col items-center justify-center p-2 rounded border border-gray-200 hover:border-blue-200 hover:bg-blue-50 text-gray-700 transition-all duration-200 text-xs"
+								title={preset.description}>
+								<span className="text-base mb-1">{preset.icon || presetIcons[preset.id]}</span>
+								<span className="capitalize truncate w-full text-center">{preset.name.split(" ")[0]}</span>
+							</button>
+						))}
 					</div>
+				</div>
+
+				{/* Category tabs */}
+				<div className="border-b border-gray-200 mb-4">
+					<div className="flex space-x-1 overflow-x-auto">
+						{categories.map((category) => (
+							<button
+								key={category.id}
+								className={`px-3 py-2 text-xs font-medium whitespace-nowrap transition-colors relative
+									${activeCategoryId === category.id ? "text-blue-600" : "text-gray-500 hover:text-gray-700"}`}
+								onClick={() => setActiveCategoryId(category.id)}>
+								{category.label}
+								{activeCategoryId === category.id && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-blue-500"></div>}
+							</button>
+						))}
+					</div>
+				</div>
+
+				{/* Category content */}
+				<div className="space-y-1 mb-4">
+					{getCategorySettings(activeCategoryId).map((setting) => renderSetting(setting.id, setting))}
+
+					{getCategorySettings(activeCategoryId).length === 0 && (
+						<div className="bg-gray-50 rounded-md p-4 text-sm text-gray-600 text-center">
+							{showAdvancedSettings ? "No settings available for this category" : "Enable advanced settings to see more options"}
+						</div>
+					)}
 				</div>
 			</div>
 
-			<style>{`
-				.visualization-control-panel {
-					width: 320px;
-					background: white;
-					border-radius: 8px;
-					box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-					border: 1px solid #e1e4e8;
-					overflow: hidden;
-					font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
-					color: #24292e;
-					transition: all 0.3s ease;
-				}
+			{/* Footer */}
+			<div className="flex items-center justify-between px-4 py-3 bg-gray-50 border-t border-gray-200">
+				<label className="flex items-center text-xs text-gray-600 cursor-pointer">
+					<input
+						type="checkbox"
+						checked={showAdvancedSettings}
+						onChange={(e) => setShowAdvancedSettings(e.target.checked)}
+						className="h-3.5 w-3.5 rounded border-gray-300 text-blue-500 focus:ring-blue-500 mr-1.5"
+					/>
+					Show Advanced Settings
+				</label>
 
-				.panel-header {
-					padding: 12px 16px;
-					background: #f6f8fa;
-					border-bottom: 1px solid #e1e4e8;
-					display: flex;
-					justify-content: space-between;
-					align-items: center;
-					cursor: ${placement === "floating" ? "move" : "default"};
-					user-select: none;
-				}
-
-				.panel-title {
-					margin: 0;
-					font-size: 14px;
-					font-weight: 600;
-				}
-
-				.panel-actions {
-					display: flex;
-					gap: 8px;
-				}
-
-				.action-button {
-					width: 24px;
-					height: 24px;
-					border-radius: 4px;
-					background: transparent;
-					border: none;
-					display: flex;
-					align-items: center;
-					justify-content: center;
-					cursor: pointer;
-					color: #57606a;
-					transition: all 0.2s ease;
-				}
-
-				.action-button:hover {
-					background: #e1e4e8;
-					color: #24292e;
-				}
-
-				.panel-content {
-					padding: 16px;
-					max-height: 600px;
-					overflow-y: auto;
-				}
-
-				.panel-categories-tabs {
-					display: flex;
-					gap: 4px;
-					margin: 16px 0;
-					border-bottom: 1px solid #e1e4e8;
-				}
-
-				.category-tab {
-					padding: 6px 12px;
-					background: transparent;
-					border: none;
-					cursor: pointer;
-					font-size: 13px;
-					color: #57606a;
-					border-bottom: 2px solid transparent;
-					transition: all 0.2s ease;
-				}
-
-				.category-tab:hover {
-					color: #0969da;
-				}
-
-				.category-tab.active {
-					color: #0969da;
-					border-bottom-color: #0969da;
-					font-weight: 500;
-				}
-
-				.panel-category-content {
-					margin-top: 12px;
-				}
-
-				.panel-footer {
-					margin-top: 20px;
-					padding-top: 12px;
-					border-top: 1px solid #e1e4e8;
-					display: flex;
-					justify-content: space-between;
-					align-items: center;
-					font-size: 12px;
-				}
-
-				.advanced-settings-toggle {
-					display: flex;
-					align-items: center;
-					gap: 6px;
-					cursor: pointer;
-					user-select: none;
-				}
-
-				.workflow-complexity-indicator {
-					display: flex;
-					align-items: center;
-				}
-
-				.complexity-badge {
-					font-size: 11px;
-					padding: 2px 6px;
-					border-radius: 10px;
-					font-weight: 500;
-					text-transform: capitalize;
-				}
-
-				.complexity-badge.simple {
-					background: #dafbe1;
-					color: #0a6c2f;
-				}
-
-				.complexity-badge.moderate {
-					background: #fff8c5;
-					color: #9a6700;
-				}
-
-				.complexity-badge.complex {
-					background: #ffebe9;
-					color: #bc4c00;
-				}
-
-				.complexity-badge.very-complex {
-					background: #ffebe9;
-					color: #cf222e;
-				}
-
-				.visualization-toggle-button {
-					display: flex;
-					align-items: center;
-					background: white;
-					padding: 8px 12px;
-					border-radius: 20px;
-					box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
-					border: 1px solid #e1e4e8;
-					transition: all 0.3s ease;
-				}
-
-				.visualization-toggle-button:hover {
-					transform: translateY(-1px);
-					box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
-				}
-
-				.toggle-icon {
-					margin-right: 6px;
-					color: #0969da;
-				}
-
-				.toggle-label {
-					font-size: 13px;
-					font-weight: 500;
-					color: #24292e;
-				}
-
-				/* Custom styling for configuration components */
-				:global(.config-presets) {
-					margin-bottom: 16px;
-				}
-
-				:global(.config-presets-title) {
-					font-size: 14px;
-					font-weight: 600;
-					margin: 0 0 8px 0;
-				}
-
-				:global(.config-presets-list) {
-					display: flex;
-					flex-wrap: wrap;
-					gap: 8px;
-				}
-
-				:global(.config-preset-button) {
-					flex: 1;
-					min-width: 80px;
-					padding: 6px 10px;
-					background: #f6f8fa;
-					border: 1px solid #e1e4e8;
-					border-radius: 6px;
-					font-size: 12px;
-					cursor: pointer;
-					display: flex;
-					align-items: center;
-					justify-content: center;
-					transition: all 0.2s ease;
-				}
-
-				:global(.config-preset-button:hover) {
-					background: #0969da;
-					border-color: #0969da;
-					color: white;
-				}
-
-				:global(.config-preset-icon) {
-					margin-right: 6px;
-				}
-
-				:global(.config-category-title) {
-					font-size: 14px;
-					font-weight: 600;
-					margin: 0 0 12px 0;
-				}
-
-				:global(.config-settings-list) {
-					display: flex;
-					flex-direction: column;
-					gap: 14px;
-				}
-
-				:global(.config-setting) {
-					margin-bottom: 4px;
-				}
-
-				:global(.config-setting-label) {
-					display: block;
-					margin-bottom: 6px;
-					font-size: 13px;
-					font-weight: 500;
-				}
-
-				:global(.config-setting-boolean .config-setting-label) {
-					display: flex;
-					align-items: center;
-					cursor: pointer;
-					user-select: none;
-				}
-
-				:global(.config-setting-boolean input) {
-					margin-right: 8px;
-				}
-
-				:global(.config-setting-value) {
-					margin-left: 8px;
-					color: #57606a;
-					font-weight: normal;
-				}
-
-				:global(.config-setting input[type="range"]) {
-					width: 100%;
-					margin: 4px 0;
-				}
-
-				:global(.config-setting select) {
-					width: 100%;
-					padding: 6px 8px;
-					border-radius: 4px;
-					border: 1px solid #e1e4e8;
-					background-color: #f6f8fa;
-					font-size: 13px;
-				}
-
-				:global(.config-setting-radio-options) {
-					display: flex;
-					gap: 12px;
-				}
-
-				:global(.config-radio-label) {
-					display: flex;
-					align-items: center;
-					gap: 4px;
-					font-size: 13px;
-					cursor: pointer;
-					user-select: none;
-				}
-
-				:global(.config-setting-description) {
-					font-size: 11px;
-					color: #57606a;
-					margin-top: 4px;
-				}
-			`}</style>
+				<div className="workflow-complexity-indicator">
+					<ComplexityBadge />
+				</div>
+			</div>
 		</div>
 	);
 };

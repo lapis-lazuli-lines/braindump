@@ -7,6 +7,10 @@ import { nodeTypeRegistry } from "../registry/nodeRegistry";
 import BaseNode from "./BaseNode";
 import PreviewNode from "./PreviewNode";
 import AudienceNode from "./AudienceNode";
+import HashtagNode from "./HashtagNode";
+import ScheduleNode from "./ScheduleNode";
+import PublishNode from "./PublishNode";
+import AnalyticsNode from "./AnalyticsNode";
 
 // Import existing nodes that we'll refactor later
 import { IdeaNode } from "../../workflow/custom/StyledNodes";
@@ -17,11 +21,15 @@ import { ConditionalNode } from "../../workflow/custom/StyledNodes";
 
 // Map of node types to their React components
 const nodeComponentMap: Record<string, React.FC<NodeProps>> = {
-	// New enhanced nodes
+	// Enhanced nodes
 	previewNode: PreviewNode,
 	audienceNode: AudienceNode,
+	hashtagNode: HashtagNode,
+	scheduleNode: ScheduleNode,
+	publishNode: PublishNode,
+	analyticsNode: AnalyticsNode,
 
-	// Existing nodes that will be refactored later
+	// Existing nodes
 	ideaNode: IdeaNode,
 	draftNode: DraftNode,
 	mediaNode: MediaNode,

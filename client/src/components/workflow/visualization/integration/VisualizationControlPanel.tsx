@@ -1,5 +1,5 @@
 // src/components/workflow/visualization/core/VisualizationControlPanel.tsx
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback, useRef, memo, useMemo } from "react";
 import { useVisualizationConfig } from "../integration/ConfigurationProvider";
 
 // Control panel props
@@ -10,15 +10,27 @@ interface VisualizationControlPanelProps {
 	className?: string;
 }
 
+// Throttle function to limit function calls
+function throttle<T extends (...args: any[]) => any>(func: T, limit: number): (...args: Parameters<T>) => void {
+	let inThrottle = false;
+	return function (this: any, ...args: Parameters<T>) {
+		if (!inThrottle) {
+			func.apply(this, args);
+			inThrottle = true;
+			setTimeout(() => (inThrottle = false), limit);
+		}
+	};
+}
+
 // Separated complexity badge component to avoid hook ordering issues
-const ComplexityBadge = () => {
+const ComplexityBadge = memo(() => {
 	// Using a try-catch to gracefully handle any errors with the hook
 	try {
 		// Import this only inside the component to avoid hook ordering issues
 		const { useWorkflowPerformance } = require("./PerformanceManager");
 		const { getWorkflowComplexity } = useWorkflowPerformance();
 
-		const complexity: { level: keyof typeof badgeClasses; score: number; nodeCount: number; edgeCount: number } = getWorkflowComplexity();
+		const complexity = getWorkflowComplexity();
 
 		// Map complexity level to tailwind classes
 		const badgeClasses = {
@@ -41,7 +53,125 @@ const ComplexityBadge = () => {
 		console.error("Error rendering complexity badge:", error);
 		return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">simple</span>;
 	}
-};
+});
+
+// Memoized toggle button component
+const ToggleButton = memo(({ onClick }: { onClick: () => void }) => {
+	return (
+		<div
+			className="fixed bottom-6 right-6 z-50 flex items-center bg-white px-3 py-2 rounded-full shadow-md border border-gray-200 hover:shadow-lg transition-all duration-300 transform hover:-translate-y-1 cursor-pointer will-change-transform"
+			onClick={onClick}>
+			<div className="text-blue-500 mr-2">
+				<svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+					<path d="M12 4V20M4 12H20" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+				</svg>
+			</div>
+			<span className="text-sm font-medium text-gray-800">Visualization</span>
+		</div>
+	);
+});
+
+// Preset button component
+const PresetButton = memo(({ preset, icon, onClick }: { preset: any; icon: string; onClick: () => void }) => {
+	return (
+		<button
+			onClick={onClick}
+			className="flex flex-col items-center justify-center p-2 rounded border border-gray-200 hover:border-blue-200 hover:bg-blue-50 text-gray-700 transition-all duration-200 text-xs"
+			title={preset.description}>
+			<span className="text-base mb-1">{preset.icon || icon}</span>
+			<span className="capitalize truncate w-full text-center">{preset.name.split(" ")[0]}</span>
+		</button>
+	);
+});
+
+// Tab button component
+const TabButton = memo(({ category, isActive, onClick }: { category: any; isActive: boolean; onClick: () => void }) => {
+	return (
+		<button
+			className={`px-3 py-2 text-xs font-medium whitespace-nowrap transition-colors relative
+				${isActive ? "text-blue-600" : "text-gray-500 hover:text-gray-700"}`}
+			onClick={onClick}>
+			{category.label}
+			{isActive && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-blue-500"></div>}
+		</button>
+	);
+});
+
+// Boolean setting component
+const BooleanSetting = memo(({ id, label, value, onChange }: { id: string; label: string; value: boolean; onChange: (value: boolean) => void }) => {
+	return (
+		<div className="flex items-center justify-between py-2">
+			<label className="text-sm font-medium text-gray-700">{label}</label>
+			<div className="relative inline-block w-10 mr-2 align-middle select-none">
+				<input type="checkbox" checked={value} onChange={(e) => onChange(e.target.checked)} className="sr-only peer" id={`setting-${id}`} />
+				<label
+					htmlFor={`setting-${id}`}
+					className="block overflow-hidden h-5 rounded-full cursor-pointer 
+						bg-gray-300 peer-checked:bg-blue-500 transition-colors duration-200 ease-in">
+					<span
+						className="block h-5 w-5 rounded-full bg-white shadow transform 
+							transition-transform duration-200 ease-in peer-checked:translate-x-5 will-change-transform"></span>
+				</label>
+			</div>
+		</div>
+	);
+});
+
+// Range setting component
+const RangeSetting = memo(
+	({ id, label, value, min, max, step, onChange }: { id: string; label: string; value: number; min: number; max: number; step: number; onChange: (value: number) => void }) => {
+		// Throttled on change handler
+		const handleChange = useMemo(
+			() =>
+				throttle((e: React.ChangeEvent<HTMLInputElement>) => {
+					onChange(parseFloat(e.target.value));
+				}, 50),
+			[onChange]
+		);
+
+		return (
+			<div className="py-2">
+				<div className="flex justify-between mb-1">
+					<label className="text-sm font-medium text-gray-700">{label}</label>
+					<span className="text-xs text-gray-500">{value.toFixed(1)}</span>
+				</div>
+				<input
+					type="range"
+					min={min}
+					max={max}
+					step={step}
+					value={value}
+					onChange={handleChange}
+					className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-500"
+				/>
+				<div className="flex justify-between text-xs text-gray-500 mt-1">
+					<span>{min}</span>
+					<span>{max}</span>
+				</div>
+			</div>
+		);
+	}
+);
+
+// Radio setting component
+const RadioSetting = memo(({ label, options, value, onChange }: { label: string; options: any[]; value: any; onChange: (value: any) => void }) => {
+	return (
+		<div className="py-2">
+			<label className="block text-sm font-medium text-gray-700 mb-2">{label}</label>
+			<div className="flex bg-gray-100 p-1 rounded-md">
+				{options.map((option) => (
+					<button
+						key={option.value}
+						onClick={() => onChange(option.value)}
+						className={`flex-1 px-3 py-1.5 text-xs font-medium rounded-md transition-colors
+							${value === option.value ? "bg-white text-gray-800 shadow-sm" : "text-gray-600 hover:text-gray-800"}`}>
+						{option.label}
+					</button>
+				))}
+			</div>
+		</div>
+	);
+});
 
 // The main control panel component
 const VisualizationControlPanel: React.FC<VisualizationControlPanelProps> = ({
@@ -70,26 +200,31 @@ const VisualizationControlPanel: React.FC<VisualizationControlPanelProps> = ({
 	const [isDragging, setIsDragging] = useState(false);
 	const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
 	const panelRef = useRef<HTMLDivElement>(null);
+	const frameRef = useRef<number | null>(null);
 
-	// Load position from local storage
+	// Load position from local storage - only once on mount
 	useEffect(() => {
 		if (placement === "floating") {
-			const savedPosition = localStorage.getItem("visualization-panel-position");
-			if (savedPosition) {
-				try {
+			try {
+				const savedPosition = localStorage.getItem("visualization-panel-position");
+				if (savedPosition) {
 					setPosition(JSON.parse(savedPosition));
-				} catch (error) {
-					console.error("Failed to parse saved panel position", error);
 				}
+			} catch (error) {
+				console.error("Failed to parse saved panel position", error);
 			}
 		}
 	}, [placement]);
 
-	// Save position to local storage when it changes
+	// Save position to local storage - debounced
 	useEffect(() => {
-		if (placement === "floating") {
+		if (placement !== "floating") return;
+
+		const timeoutId = setTimeout(() => {
 			localStorage.setItem("visualization-panel-position", JSON.stringify(position));
-		}
+		}, 500);
+
+		return () => clearTimeout(timeoutId);
 	}, [position, placement]);
 
 	// Handle mouse down for dragging
@@ -110,38 +245,53 @@ const VisualizationControlPanel: React.FC<VisualizationControlPanelProps> = ({
 		[placement]
 	);
 
-	// Handle mouse move for dragging
+	// Handle mouse move for dragging - using requestAnimationFrame for performance
 	useEffect(() => {
 		if (!isDragging) return;
 
 		const handleMouseMove = (e: MouseEvent) => {
-			setPosition({
-				x: e.clientX - dragOffset.x,
-				y: e.clientY - dragOffset.y,
+			if (frameRef.current) {
+				cancelAnimationFrame(frameRef.current);
+			}
+
+			frameRef.current = requestAnimationFrame(() => {
+				setPosition({
+					x: e.clientX - dragOffset.x,
+					y: e.clientY - dragOffset.y,
+				});
 			});
 		};
 
 		const handleMouseUp = () => {
 			setIsDragging(false);
+			if (frameRef.current) {
+				cancelAnimationFrame(frameRef.current);
+				frameRef.current = null;
+			}
 		};
 
-		document.addEventListener("mousemove", handleMouseMove);
+		document.addEventListener("mousemove", handleMouseMove, { passive: true });
 		document.addEventListener("mouseup", handleMouseUp);
 
 		return () => {
 			document.removeEventListener("mousemove", handleMouseMove);
 			document.removeEventListener("mouseup", handleMouseUp);
+			if (frameRef.current) {
+				cancelAnimationFrame(frameRef.current);
+				frameRef.current = null;
+			}
 		};
 	}, [isDragging, dragOffset]);
 
-	// Get styles based on placement
-	const getPanelStyles = () => {
+	// Get styles based on placement - memoized
+	const panelStyles = useMemo(() => {
 		if (placement === "floating") {
 			return {
 				position: "absolute",
 				left: `${position.x}px`,
 				top: `${position.y}px`,
 				zIndex: 1000,
+				willChange: isDragging ? "transform" : "auto", // Hint to browser for optimization
 			} as React.CSSProperties;
 		}
 
@@ -163,7 +313,7 @@ const VisualizationControlPanel: React.FC<VisualizationControlPanelProps> = ({
 		}
 
 		return styles;
-	};
+	}, [placement, position, isDragging]);
 
 	// Auto-optimize handler - defined safely with a try/catch
 	const handleAutoOptimize = useCallback(() => {
@@ -178,144 +328,57 @@ const VisualizationControlPanel: React.FC<VisualizationControlPanelProps> = ({
 		}
 	}, []);
 
-	// Define preset icons
-	const presetIcons: { [key: string]: string } = {
-		performance: "⚡",
-		balanced: "⚖️",
-		visual: "🎨",
-		minimal: "🔍",
-		analysis: "📊",
-	};
+	// Define preset icons - memoized to avoid recreating on every render
+	const presetIcons = useMemo(
+		() => ({
+			performance: "⚡",
+			balanced: "⚖️",
+			visual: "🎨",
+			minimal: "🔍",
+			analysis: "📊",
+		}),
+		[]
+	);
 
-	if (!isPanelOpen && !alwaysVisible) {
-		// Render just the toggle button when closed
-		return (
-			<div
-				className="fixed bottom-6 right-6 z-50 flex items-center bg-white px-3 py-2 rounded-full shadow-md border border-gray-200 hover:shadow-lg transition-all duration-300 transform hover:-translate-y-1 cursor-pointer"
-				onClick={togglePanel}>
-				<div className="text-blue-500 mr-2">
-					<svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-						<path d="M12 4V20M4 12H20" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-					</svg>
-				</div>
-				<span className="text-sm font-medium text-gray-800">Visualization</span>
-			</div>
-		);
-	}
+	// Handle preset click - memoized
+	const handlePresetClick = useCallback(
+		(presetId: string) => {
+			applyPreset(presetId);
+		},
+		[applyPreset]
+	);
 
-	// Render the Setting UI based on type
-	const renderSetting = (settingId: keyof typeof config, setting: any) => {
-		const value = config[settingId];
+	// Handle category click - memoized
+	const handleCategoryClick = useCallback(
+		(categoryId: string) => {
+			setActiveCategoryId(categoryId);
+		},
+		[setActiveCategoryId]
+	);
 
-		switch (setting.type) {
-			case "boolean":
-				return (
-					<div className="flex items-center justify-between py-2" key={settingId}>
-						<label className="text-sm font-medium text-gray-700">{setting.label}</label>
-						<div className="relative inline-block w-10 mr-2 align-middle select-none">
-							<input
-								type="checkbox"
-								checked={value as boolean}
-								onChange={(e) => updateSetting(settingId, e.target.checked)}
-								className="sr-only peer"
-								id={`setting-${settingId}`}
-							/>
-							<label
-								htmlFor={`setting-${settingId}`}
-								className="block overflow-hidden h-5 rounded-full cursor-pointer 
-									bg-gray-300 peer-checked:bg-blue-500 transition-colors duration-200 ease-in">
-								<span
-									className="block h-5 w-5 rounded-full bg-white shadow transform 
-										transition-transform duration-200 ease-in peer-checked:translate-x-5"></span>
-							</label>
-						</div>
-					</div>
-				);
-
-			case "range":
-				return (
-					<div className="py-2" key={settingId}>
-						<div className="flex justify-between mb-1">
-							<label className="text-sm font-medium text-gray-700">{setting.label}</label>
-							<span className="text-xs text-gray-500">{typeof value === "number" ? value.toFixed(1) : value}</span>
-						</div>
-						<input
-							type="range"
-							min={setting.min || 0}
-							max={setting.max || 100}
-							step={setting.step || 1}
-							value={value as number}
-							onChange={(e) => updateSetting(settingId, parseFloat(e.target.value))}
-							className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-500"
-						/>
-						<div className="flex justify-between text-xs text-gray-500 mt-1">
-							<span>{setting.min || 0}</span>
-							<span>{setting.max || 100}</span>
-						</div>
-					</div>
-				);
-
-			case "select":
-				return (
-					<div className="py-2" key={settingId}>
-						<label className="block text-sm font-medium text-gray-700 mb-1">{setting.label}</label>
-						<select
-							value={value as string}
-							onChange={(e) =>
-								updateSetting(settingId, setting.options?.find((option: { value: string }) => option.value === e.target.value)?.value || e.target.value)
-							}
-							className="w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm text-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">
-							{setting.options?.map((option: any) => (
-								<option key={option.value} value={option.value}>
-									{option.label}
-								</option>
-							))}
-						</select>
-						{setting.description && <p className="mt-1 text-xs text-gray-500">{setting.description}</p>}
-					</div>
-				);
-
-			case "radio":
-				return (
-					<div className="py-2" key={settingId}>
-						<label className="block text-sm font-medium text-gray-700 mb-2">{setting.label}</label>
-						<div className="flex bg-gray-100 p-1 rounded-md">
-							{setting.options?.map((option: any) => (
-								<button
-									key={option.value}
-									onClick={() => updateSetting(settingId, option.value)}
-									className={`flex-1 px-3 py-1.5 text-xs font-medium rounded-md transition-colors
-										${value === option.value ? "bg-white text-gray-800 shadow-sm" : "text-gray-600 hover:text-gray-800"}`}>
-									{option.label}
-								</button>
-							))}
-						</div>
-					</div>
-				);
-
-			default:
-				return null;
-		}
-	};
-
-	// Get settings for the current category
-	const getCategorySettings = (categoryId: string) => {
-		const category = categories.find((c) => c.id === categoryId);
+	// Get settings for the current category - memoized
+	const currentCategorySettings = useMemo(() => {
+		const category = categories.find((c) => c.id === activeCategoryId);
 		if (!category) return [];
 
 		return category.settings.filter((setting) => showAdvancedSettings || !setting.advanced);
-	};
+	}, [categories, activeCategoryId, showAdvancedSettings]);
+
+	// If panel is closed, show just the toggle button
+	if (!isPanelOpen && !alwaysVisible) {
+		return <ToggleButton onClick={togglePanel} />;
+	}
 
 	return (
-		<div
-			ref={panelRef}
-			className={`bg-white rounded-lg shadow-lg border border-gray-200 overflow-hidden w-80 transition-all duration-300 ${className}`}
-			style={getPanelStyles()}>
+		<div ref={panelRef} className={`bg-white rounded-lg shadow-lg border border-gray-200 overflow-hidden w-80 transition-all duration-300 ${className}`} style={panelStyles}>
 			{/* Header */}
 			<div
 				className="flex items-center justify-between p-3 bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200"
 				onMouseDown={handleMouseDown}
-				style={{ cursor: placement === "floating" ? "move" : "default" }}>
+				style={{
+					cursor: placement === "floating" ? "move" : "default",
+					touchAction: "none", // Improves touch performance
+				}}>
 				<h3 className="text-sm font-semibold text-gray-700">Visualization Controls</h3>
 
 				<div className="flex space-x-1">
@@ -343,20 +406,13 @@ const VisualizationControlPanel: React.FC<VisualizationControlPanelProps> = ({
 				</div>
 			</div>
 
-			<div className="p-4 max-h-[calc(100vh-12rem)] overflow-y-auto">
+			<div className="p-4 max-h-[calc(100vh-12rem)] overflow-y-auto overscroll-contain">
 				{/* Presets section */}
 				<div className="mb-5">
 					<h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Presets</h4>
 					<div className="grid grid-cols-5 gap-2">
 						{presets.map((preset) => (
-							<button
-								key={preset.id}
-								onClick={() => applyPreset(preset.id)}
-								className="flex flex-col items-center justify-center p-2 rounded border border-gray-200 hover:border-blue-200 hover:bg-blue-50 text-gray-700 transition-all duration-200 text-xs"
-								title={preset.description}>
-								<span className="text-base mb-1">{preset.icon || presetIcons[preset.id]}</span>
-								<span className="capitalize truncate w-full text-center">{preset.name.split(" ")[0]}</span>
-							</button>
+							<PresetButton key={preset.id} preset={preset} icon={presetIcons[preset.id as keyof typeof presetIcons]} onClick={() => handlePresetClick(preset.id)} />
 						))}
 					</div>
 				</div>
@@ -365,23 +421,59 @@ const VisualizationControlPanel: React.FC<VisualizationControlPanelProps> = ({
 				<div className="border-b border-gray-200 mb-4">
 					<div className="flex space-x-1 overflow-x-auto">
 						{categories.map((category) => (
-							<button
-								key={category.id}
-								className={`px-3 py-2 text-xs font-medium whitespace-nowrap transition-colors relative
-									${activeCategoryId === category.id ? "text-blue-600" : "text-gray-500 hover:text-gray-700"}`}
-								onClick={() => setActiveCategoryId(category.id)}>
-								{category.label}
-								{activeCategoryId === category.id && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-blue-500"></div>}
-							</button>
+							<TabButton key={category.id} category={category} isActive={activeCategoryId === category.id} onClick={() => handleCategoryClick(category.id)} />
 						))}
 					</div>
 				</div>
 
 				{/* Category content */}
 				<div className="space-y-1 mb-4">
-					{getCategorySettings(activeCategoryId).map((setting) => renderSetting(setting.id, setting))}
+					{currentCategorySettings.map((setting) => {
+						const value = config[setting.id];
 
-					{getCategorySettings(activeCategoryId).length === 0 && (
+						switch (setting.type) {
+							case "boolean":
+								return (
+									<BooleanSetting
+										key={setting.id}
+										id={setting.id}
+										label={setting.label}
+										value={value as boolean}
+										onChange={(newValue) => updateSetting(setting.id, newValue)}
+									/>
+								);
+
+							case "range":
+								return (
+									<RangeSetting
+										key={setting.id}
+										id={setting.id}
+										label={setting.label}
+										value={value as number}
+										min={setting.min || 0}
+										max={setting.max || 100}
+										step={setting.step || 1}
+										onChange={(newValue) => updateSetting(setting.id, newValue)}
+									/>
+								);
+
+							case "radio":
+								return (
+									<RadioSetting
+										key={setting.id}
+										label={setting.label}
+										options={setting.options || []}
+										value={value}
+										onChange={(newValue) => updateSetting(setting.id, newValue)}
+									/>
+								);
+
+							default:
+								return null;
+						}
+					})}
+
+					{currentCategorySettings.length === 0 && (
 						<div className="bg-gray-50 rounded-md p-4 text-sm text-gray-600 text-center">
 							{showAdvancedSettings ? "No settings available for this category" : "Enable advanced settings to see more options"}
 						</div>
@@ -409,4 +501,4 @@ const VisualizationControlPanel: React.FC<VisualizationControlPanelProps> = ({
 	);
 };
 
-export default VisualizationControlPanel;
+export default memo(VisualizationControlPanel);

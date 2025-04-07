@@ -1,9 +1,8 @@
 // client/src/components/workflow/nodes/PublishNode.tsx
 import React, { useState, useEffect, useCallback } from "react";
-import { NodeProps, Position } from "reactflow";
+import { NodeProps } from "reactflow";
 import BaseNode from "./BaseNode";
 import { useWorkflowStore } from "../workflowStore";
-import { EnhancedPortHandle } from "../visualization/core/PortActivityIndicator";
 import { useDataSnapshotRegistration } from "../visualization/core/TransformationVisualizer";
 
 const PublishNode: React.FC<NodeProps> = (props) => {
@@ -344,19 +343,17 @@ const PublishNode: React.FC<NodeProps> = (props) => {
 		);
 	};
 
+	// Publish icon
+	const publishIcon = (
+		<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+			<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+		</svg>
+	);
+
 	return (
-		<>
-			{/* Input handle */}
-			<EnhancedPortHandle type="target" position={Position.Left} id="content" nodeId={id} index={0} dataType="combined_content" label="Content" />
-
-			{/* The node itself */}
-			<BaseNode {...props} title="Publish Content" color="#10b981">
-				{showConfirmation ? renderConfirmation() : renderNormalUI()}
-			</BaseNode>
-
-			{/* Output handle */}
-			<EnhancedPortHandle type="source" position={Position.Right} id="published" nodeId={id} index={0} dataType="combined_content" label="Published" />
-		</>
+		<BaseNode {...props} title="Publish Content" color="#10b981" icon={publishIcon}>
+			{showConfirmation ? renderConfirmation() : renderNormalUI()}
+		</BaseNode>
 	);
 };
 

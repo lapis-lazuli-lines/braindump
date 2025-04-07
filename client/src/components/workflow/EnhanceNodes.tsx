@@ -1,88 +1,66 @@
+// client/src/components/workflow/EnhanceNodes.tsx
 import React from "react";
 import { NodeProps } from "reactflow";
-import NodeStatusIndicator from "./visualization/NodeStatusIndicator";
-import { withPortActivityTracking } from "./visualization/integration/PortActivityAdapter";
 
-// Define types for the enhancement options
-interface EnhancementOptions {
-	indicatorPosition?: "top-right" | "top-left" | "bottom-right" | "bottom-left";
-	indicatorSize?: "small" | "medium" | "large";
-	trackPortActivity?: boolean;
-}
-const SafeEnhancedNode = <T extends NodeProps>(BaseNode: React.ComponentType<T>, options: EnhancementOptions = {}) => {
-	const Component = (props: T) => {
-		try {
-			// Try to create the enhanced node
-			const EnhancedNode = withPortActivityTracking((nodeProps: T) => (
-				<>
-					<BaseNode {...nodeProps} />
-					<NodeStatusIndicator nodeId={nodeProps.id} position={options.indicatorPosition || "top-right"} size={options.indicatorSize || "small"} />
-				</>
-			));
+// Import base node components
+import { IdeaNode, DraftNode, MediaNode, PlatformNode, ConditionalNode } from "./custom/StyledNodes";
 
-			return <EnhancedNode {...props} />;
-		} catch (error) {
-			console.warn("Enhancement failed, falling back to base component:", error);
-			// Fallback to basic component if enhancement fails
-			return <BaseNode {...props} />;
-		}
-	};
+// Import the specialized node components
+import HashtagNode from "./nodes/HashtagNode";
+import ScheduleNode from "./nodes/ScheduleNode";
+import PublishNode from "./nodes/PublishNode";
+import AnalyticsNode from "./nodes/AnalyticsNode";
+import PreviewNode from "./nodes/PreviewNode";
+import AudienceNode from "./nodes/AudienceNode";
 
-	return Component;
+/**
+ * Simple node enhancement function without any overhead.
+ * This lightweight wrapper just passes through the props without adding
+ * any visualization indicators that can cause rendering issues.
+ */
+const enhanceNode = <T extends NodeProps>(BaseNode: React.ComponentType<T>) => {
+	const EnhancedComponent = React.memo((props: T) => {
+		return <BaseNode {...props} />;
+	});
+
+	// Set display name for better debugging
+	const displayName = BaseNode.displayName || BaseNode.name || "Component";
+	EnhancedComponent.displayName = `Enhanced${displayName}`;
+
+	return EnhancedComponent;
 };
 
-// Import your existing node components
-import {
-	IdeaNode,
-	DraftNode,
-	MediaNode,
-	PlatformNode,
-	ConditionalNode,
-	// Import any other node types you have
-} from "./custom/StyledNodes";
+// Enhanced versions of base nodes
+export const EnhancedIdeaNode = enhanceNode(IdeaNode);
+export const EnhancedDraftNode = enhanceNode(DraftNode);
+export const EnhancedMediaNode = enhanceNode(MediaNode);
+export const EnhancedPlatformNode = enhanceNode(PlatformNode);
+export const EnhancedConditionalNode = enhanceNode(ConditionalNode);
 
-// Create enhanced versions of each node type
-export const EnhancedIdeaNode = SafeEnhancedNode(IdeaNode, {
-	indicatorPosition: "top-right",
-	indicatorSize: "small",
-});
+// Enhanced versions of specialized nodes
+export const EnhancedHashtagNode = enhanceNode(HashtagNode);
+export const EnhancedScheduleNode = enhanceNode(ScheduleNode);
+export const EnhancedPublishNode = enhanceNode(PublishNode);
+export const EnhancedAnalyticsNode = enhanceNode(AnalyticsNode);
+export const EnhancedPreviewNode = enhanceNode(PreviewNode);
+export const EnhancedAudienceNode = enhanceNode(AudienceNode);
 
-export const EnhancedDraftNode = SafeEnhancedNode(DraftNode, {
-	indicatorPosition: "top-right",
-	indicatorSize: "small",
-});
-
-export const EnhancedMediaNode = SafeEnhancedNode(MediaNode, {
-	indicatorPosition: "top-right",
-	indicatorSize: "small",
-});
-
-export const EnhancedPlatformNode = SafeEnhancedNode(PlatformNode, {
-	indicatorPosition: "top-right",
-	indicatorSize: "small",
-});
-
-export const EnhancedConditionalNode = SafeEnhancedNode(ConditionalNode, {
-	indicatorPosition: "top-right",
-	indicatorSize: "small",
-});
-// Add more enhanced nodes for each node type you have
-
-// If you need more control over the node enhancement, you can create a factory function
-export const createEnhancedNode = (
-	BaseNode: React.ComponentType<NodeProps>,
-	options = {
-		indicatorPosition: "top-right" as "top-right" | "top-left" | "bottom-right" | "bottom-left",
-		indicatorSize: "small" as "small" | "medium" | "large",
-		trackPortActivity: true,
-	}
-) => {
-	const Component = (props: NodeProps) => (
-		<>
-			<BaseNode {...props} />
-			<NodeStatusIndicator nodeId={props.id} position={options.indicatorPosition} size={options.indicatorSize} />
-		</>
-	);
-
-	return options.trackPortActivity ? withPortActivityTracking(Component) : Component;
+/**
+ * Mapping of node types to their enhanced components.
+ * This is useful for registering all node types in one go.
+ */
+export const enhancedNodeTypes = {
+	ideaNode: EnhancedIdeaNode,
+	draftNode: EnhancedDraftNode,
+	mediaNode: EnhancedMediaNode,
+	platformNode: EnhancedPlatformNode,
+	conditionalNode: EnhancedConditionalNode,
+	hashtagNode: EnhancedHashtagNode,
+	scheduleNode: EnhancedScheduleNode,
+	publishNode: EnhancedPublishNode,
+	analyticsNode: EnhancedAnalyticsNode,
+	previewNode: EnhancedPreviewNode,
+	audienceNode: EnhancedAudienceNode,
 };
+
+export default enhancedNodeTypes;

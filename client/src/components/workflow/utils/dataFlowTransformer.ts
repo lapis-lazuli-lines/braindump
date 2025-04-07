@@ -62,6 +62,32 @@ export interface PreviewData {
 	feedback?: string;
 }
 
+export interface ScheduleData {
+	scheduledTime: string;
+	timeZone: string;
+	recurrence: string | null;
+	scheduledPosts?: Array<{ time: string; platform: string }>;
+}
+
+export interface PublishData {
+	status: "draft" | "scheduled" | "publishing" | "published" | "failed";
+	publishedUrl?: string | null;
+	publishedTime?: string | null;
+	error?: string | null;
+}
+
+export interface AnalyticsData {
+	metrics: string[];
+	goals: Record<string, number>;
+	integrations: Array<{
+		id: string;
+		name: string;
+		enabled: boolean;
+		lastSync?: string;
+	}>;
+	dateRange: { start: string; end: string };
+}
+
 // Type of source data by node type
 export type NodeDataMapping = {
 	ideaNode: IdeaData;
@@ -71,6 +97,9 @@ export type NodeDataMapping = {
 	audienceNode: AudienceData;
 	platformNode: PlatformData;
 	previewNode: PreviewData;
+	scheduleNode: ScheduleData;
+	publishNode: PublishData;
+	analyticsNode: AnalyticsData;
 	[key: string]: any;
 };
 
@@ -100,6 +129,18 @@ export class DataFlowTransformer {
 
 		if (fromType === "platformNode" && toType === "previewNode") {
 			return this.transformPlatformToPreview(data);
+		}
+
+		if (fromType === "hashtagNode" && toType === "platformNode") {
+			return this.transformHashtagsToPlatform(data);
+		}
+
+		if (fromType === "draftNode" && toType === "platformNode") {
+			return this.transformDraftToPlatform(data);
+		}
+
+		if (fromType === "scheduleNode" && toType === "publishNode") {
+			return this.transformScheduleToPublish(data);
 		}
 
 		// Default - return the original data if no specific transformation exists
@@ -171,6 +212,42 @@ export class DataFlowTransformer {
 	}
 
 	/**
+	 * Transform hashtag data to platform input
+	 */
+	private static transformHashtagsToPlatform(hashtagData: HashtagData): any {
+		return {
+			hashtags: hashtagData.tags || [],
+		};
+	}
+
+	/**
+	 * Transform draft content to platform input
+	 */
+	private static transformDraftToPlatform(draftData: DraftData): any {
+		return {
+			content: draftData.content || "",
+			contentType: draftData.formatting || "plain",
+			metadata: {
+				sourceIdea: draftData.ideaSource,
+				properties: draftData.properties,
+			},
+		};
+	}
+
+	/**
+	 * Transform schedule data to publish input
+	 */
+	private static transformScheduleToPublish(scheduleData: ScheduleData): any {
+		return {
+			isScheduled: true,
+			scheduledTime: scheduleData.scheduledTime,
+			timeZone: scheduleData.timeZone,
+			recurrence: scheduleData.recurrence,
+			scheduledPosts: scheduleData.scheduledPosts || [],
+		};
+	}
+
+	/**
 	 * Generate suggestions for compatible node types
 	 */
 	static getSuggestions(fromType: string, fromDataType: DataType): { nodeType: string; compatibility: number; reason: string }[] {
@@ -203,6 +280,18 @@ export class DataFlowTransformer {
 			[DataType.PLATFORM_SETTINGS]: {
 				[DataType.PREVIEW]: true,
 				[DataType.COMBINED_CONTENT]: true,
+			},
+			[DataType.HASHTAG_SET]: {
+				[DataType.COMBINED_CONTENT]: true,
+				[DataType.PLATFORM_SETTINGS]: true,
+			},
+			[DataType.SCHEDULE]: {
+				[DataType.COMBINED_CONTENT]: true,
+			},
+			[DataType.COMBINED_CONTENT]: {
+				[DataType.PREVIEW]: true,
+				[DataType.SCHEDULE]: true,
+				[DataType.ANALYTICS]: true,
 			},
 		};
 

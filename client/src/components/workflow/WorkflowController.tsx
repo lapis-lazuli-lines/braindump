@@ -12,16 +12,37 @@ import TogglableGuide from "./custom/TogglableGuide";
 import AnimatedEdge from "./custom/AnimatedEdge";
 import { CSSVariablesStyle } from "./custom/StyledNodes";
 import WorkflowExecutor from "./workflowExecutor";
-import { EnhancedIdeaNode, EnhancedDraftNode, EnhancedMediaNode, EnhancedPlatformNode, EnhancedConditionalNode } from "./EnhanceNodes";
 
-// Register node types
+// Import all enhanced node components
+import {
+	EnhancedIdeaNode,
+	EnhancedDraftNode,
+	EnhancedMediaNode,
+	EnhancedPlatformNode,
+	EnhancedConditionalNode,
+	EnhancedHashtagNode,
+	EnhancedScheduleNode,
+	EnhancedPublishNode,
+	EnhancedAnalyticsNode,
+	EnhancedPreviewNode,
+	EnhancedAudienceNode,
+} from "./EnhanceNodes";
+
+// Register all node types
 const nodeTypes = {
 	ideaNode: EnhancedIdeaNode,
 	draftNode: EnhancedDraftNode,
 	mediaNode: EnhancedMediaNode,
 	platformNode: EnhancedPlatformNode,
 	conditionalNode: EnhancedConditionalNode,
+	hashtagNode: EnhancedHashtagNode,
+	scheduleNode: EnhancedScheduleNode,
+	publishNode: EnhancedPublishNode,
+	analyticsNode: EnhancedAnalyticsNode,
+	previewNode: EnhancedPreviewNode,
+	audienceNode: EnhancedAudienceNode,
 };
+
 // Define edge types for the flow
 const edgeTypes = {
 	animated: AnimatedEdge,

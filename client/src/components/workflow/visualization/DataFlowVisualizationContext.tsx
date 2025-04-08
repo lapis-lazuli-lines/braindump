@@ -1,410 +1,136 @@
-// src/components/workflow/visualization/DataFlowVisualizationContext.tsx
-import React, { createContext, useContext, useReducer, useEffect } from "react";
-import { useWorkflowStore } from "../workflowStore";
-import { Edge, Node } from "reactflow";
+// client/src/components/workflow/visualization/DataFlowVisualizationContext.tsx
+import React, { createContext, useContext, useState, useCallback, ReactNode } from "react";
 import { DataType } from "../registry/nodeRegistry";
 
-// Define the data structure for visualization state
-export interface DataFlowParticle {
-	id: string;
-	edgeId: string;
-	progress: number; // 0-1 value representing position along the edge
-	speed: number;
-	dataType: DataType;
-	size: number;
-}
+/**
+ * Simplified context for edge state management
+ * Focuses on high performance and reduced overhead
+ */
 
-export interface EdgeFlowState {
+// Edge state interface
+interface EdgeState {
 	isActive: boolean;
 	dataType?: DataType;
-	particles: DataFlowParticle[];
-	lastUpdated: number;
-	dataSnapshot?: any; // Snapshot of data flowing through this edge
+	dataSnapshot?: any; // Optional data snapshot for tooltips
 }
 
-export interface NodeExecutionState {
-	status: "idle" | "pending" | "processing" | "completed" | "error";
-	progress: number; // 0-1 value
-	startTime?: number;
-	endTime?: number;
-	error?: string;
-	inputPorts: Record<string, boolean>; // Map of port IDs to active state
-	outputPorts: Record<string, boolean>;
+// Context state
+interface DataFlowState {
+	showParticles: boolean;
+	edges: Record<string, EdgeState>;
 }
 
-// The complete visualization state
-interface VisualizationState {
-	isExecuting: boolean;
-	edges: Record<string, EdgeFlowState>; // Map of edge IDs to their states
-	nodes: Record<string, NodeExecutionState>; // Map of node IDs to their states
-	activeNodeId?: string;
-	executionPath: string[]; // Ordered list of executed node IDs
-	showDataPreviews: boolean;
-	animationSpeed: number; // Multiplier for animation speed
-}
-
-// Define action types
-type VisualizationAction =
-	| { type: "START_EXECUTION" }
-	| { type: "STOP_EXECUTION" }
-	| { type: "SET_ACTIVE_NODE"; nodeId: string }
-	| { type: "UPDATE_NODE_STATE"; nodeId: string; state: Partial<NodeExecutionState> }
-	| { type: "ACTIVATE_EDGE"; edgeId: string; dataType: DataType; dataSnapshot?: any }
-	| { type: "DEACTIVATE_EDGE"; edgeId: string }
-	| { type: "UPDATE_EDGE_PARTICLES"; edgeId: string; particles: DataFlowParticle[] }
-	| { type: "ADD_TO_EXECUTION_PATH"; nodeId: string }
-	| { type: "CLEAR_VISUALIZATION" }
-	| { type: "SET_SHOW_DATA_PREVIEWS"; value: boolean }
-	| { type: "SET_ANIMATION_SPEED"; value: number };
-
-// Create initial state
-const initialState: VisualizationState = {
-	isExecuting: false,
-	edges: {},
-	nodes: {},
-	executionPath: [],
-	showDataPreviews: true,
-	animationSpeed: 1,
-};
-
-// Create the reducer
-function visualizationReducer(state: VisualizationState, action: VisualizationAction): VisualizationState {
-	switch (action.type) {
-		case "START_EXECUTION":
-			return {
-				...state,
-				isExecuting: true,
-				executionPath: [],
-			};
-
-		case "STOP_EXECUTION":
-			return {
-				...state,
-				isExecuting: false,
-				activeNodeId: undefined,
-			};
-
-		case "SET_ACTIVE_NODE":
-			return {
-				...state,
-				activeNodeId: action.nodeId,
-				nodes: {
-					...state.nodes,
-					[action.nodeId]: {
-						...state.nodes[action.nodeId],
-						status: "processing" as const,
-						startTime: Date.now(),
-					},
-				},
-			};
-
-		case "UPDATE_NODE_STATE":
-			return {
-				...state,
-				nodes: {
-					...state.nodes,
-					[action.nodeId]: {
-						...state.nodes[action.nodeId],
-						...action.state,
-					},
-				},
-			};
-
-		case "ACTIVATE_EDGE":
-			return {
-				...state,
-				edges: {
-					...state.edges,
-					[action.edgeId]: {
-						isActive: true,
-						dataType: action.dataType,
-						particles: generateInitialParticles(action.edgeId, action.dataType),
-						lastUpdated: Date.now(),
-						dataSnapshot: action.dataSnapshot,
-					},
-				},
-			};
-
-		case "DEACTIVATE_EDGE":
-			return {
-				...state,
-				edges: {
-					...state.edges,
-					[action.edgeId]: {
-						...state.edges[action.edgeId],
-						isActive: false,
-						particles: [],
-					},
-				},
-			};
-
-		case "UPDATE_EDGE_PARTICLES":
-			return {
-				...state,
-				edges: {
-					...state.edges,
-					[action.edgeId]: {
-						...state.edges[action.edgeId],
-						particles: action.particles,
-						lastUpdated: Date.now(),
-					},
-				},
-			};
-
-		case "ADD_TO_EXECUTION_PATH":
-			return {
-				...state,
-				executionPath: [...state.executionPath, action.nodeId],
-			};
-
-		case "CLEAR_VISUALIZATION":
-			return {
-				...initialState,
-				showDataPreviews: state.showDataPreviews,
-				animationSpeed: state.animationSpeed,
-			};
-
-		case "SET_SHOW_DATA_PREVIEWS":
-			return {
-				...state,
-				showDataPreviews: action.value,
-			};
-
-		case "SET_ANIMATION_SPEED":
-			return {
-				...state,
-				animationSpeed: action.value,
-			};
-
-		default:
-			return state;
-	}
-}
-
-// Helper function to generate initial particles for an edge
-function generateInitialParticles(edgeId: string, dataType: DataType): DataFlowParticle[] {
-	// Generate 1-3 particles with random starting positions
-	const count = 1 + Math.floor(Math.random() * 3);
-	const particles: DataFlowParticle[] = [];
-
-	for (let i = 0; i < count; i++) {
-		particles.push({
-			id: `particle_${edgeId}_${i}_${Date.now()}`,
-			edgeId,
-			progress: Math.random() * 0.3, // Start at different positions
-			speed: 0.005 + Math.random() * 0.005, // Random speed
-			dataType,
-			size: getParticleSizeForDataType(dataType),
-		});
-	}
-
-	return particles;
-}
-
-// Helper to determine particle size based on data type
-function getParticleSizeForDataType(dataType: DataType): number {
-	switch (dataType) {
-		case DataType.MEDIA:
-			return 6; // Larger for media
-		case DataType.STRUCTURED_TEXT:
-		case DataType.DRAFT:
-			return 5; // Medium for text content
-		default:
-			return 4; // Default size
-	}
-}
-
-// Create the context
-interface DataFlowVisualizationContextValue {
-	state: VisualizationState;
-	startVisualization: () => void;
-	stopVisualization: () => void;
-	setActiveNode: (nodeId: string) => void;
-	updateNodeState: (nodeId: string, state: Partial<NodeExecutionState>) => void;
-	activateEdge: (edgeId: string, dataType: DataType, dataSnapshot?: any) => void;
+// Context actions
+interface DataFlowActions {
+	setShowParticles: (show: boolean) => void;
+	getEdgeState: (edgeId: string) => EdgeState;
+	activateEdge: (edgeId: string, dataType?: DataType, initialData?: any) => void;
 	deactivateEdge: (edgeId: string) => void;
-	updateEdgeParticles: (edgeId: string, particles: DataFlowParticle[]) => void;
-	addToExecutionPath: (nodeId: string) => void;
-	clearVisualization: () => void;
-	setShowDataPreviews: (value: boolean) => void;
-	setAnimationSpeed: (value: number) => void;
-	getNodeState: (nodeId: string) => NodeExecutionState | undefined;
-	getEdgeState: (edgeId: string) => EdgeFlowState | undefined;
+	setEdgeDataSnapshot: (edgeId: string, data: any) => void;
 }
 
-const DataFlowVisualizationContext = createContext<DataFlowVisualizationContextValue | undefined>(undefined);
+// Combined context type
+type DataFlowVisualizationContextType = DataFlowState & DataFlowActions;
+
+// Create context with default values
+const DataFlowVisualizationContext = createContext<DataFlowVisualizationContextType>({
+	showParticles: true,
+	edges: {},
+
+	setShowParticles: () => {},
+	getEdgeState: () => ({ isActive: false }),
+	activateEdge: () => {},
+	deactivateEdge: () => {},
+	setEdgeDataSnapshot: () => {},
+});
+
+// Hook for using the data flow context
+export const useDataFlowVisualization = () => useContext(DataFlowVisualizationContext);
 
 // Provider component
-export const DataFlowVisualizationProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-	const [state, dispatch] = useReducer(visualizationReducer, initialState);
-	const { nodes, edges } = useWorkflowStore();
+interface ProviderProps {
+	children: ReactNode;
+}
 
-	// Initialize node states when nodes change
-	useEffect(() => {
-		nodes.forEach((node) => {
-			if (!state.nodes[node.id]) {
-				dispatch({
-					type: "UPDATE_NODE_STATE",
-					nodeId: node.id,
-					state: {
-						status: "idle",
-						progress: 0,
-						inputPorts: {},
-						outputPorts: {},
+export const DataFlowVisualizationProvider: React.FC<ProviderProps> = ({ children }) => {
+	const [state, setState] = useState<DataFlowState>({
+		showParticles: true,
+		edges: {},
+	});
+
+	// Toggle particle visibility
+	const setShowParticles = useCallback((show: boolean) => {
+		setState((prev) => ({ ...prev, showParticles: show }));
+	}, []);
+
+	// Get edge state
+	const getEdgeState = useCallback(
+		(edgeId: string): EdgeState => {
+			return state.edges[edgeId] || { isActive: false };
+		},
+		[state.edges]
+	);
+
+	// Activate edge (start animation)
+	const activateEdge = useCallback((edgeId: string, dataType?: DataType, initialData?: any) => {
+		setState((prev) => ({
+			...prev,
+			edges: {
+				...prev.edges,
+				[edgeId]: {
+					isActive: true,
+					dataType,
+					dataSnapshot: initialData,
+				},
+			},
+		}));
+	}, []);
+
+	// Deactivate edge (stop animation)
+	const deactivateEdge = useCallback((edgeId: string) => {
+		setState((prev) => {
+			const newEdges = { ...prev.edges };
+			if (newEdges[edgeId]) {
+				newEdges[edgeId] = {
+					...newEdges[edgeId],
+					isActive: false,
+				};
+			}
+			return { ...prev, edges: newEdges };
+		});
+	}, []);
+
+	// Set data snapshot for an edge
+	const setEdgeDataSnapshot = useCallback((edgeId: string, data: any) => {
+		setState((prev) => {
+			if (!prev.edges[edgeId]) {
+				return prev;
+			}
+
+			return {
+				...prev,
+				edges: {
+					...prev.edges,
+					[edgeId]: {
+						...prev.edges[edgeId],
+						dataSnapshot: data,
 					},
-				});
-			}
+				},
+			};
 		});
-	}, [nodes, state.nodes]);
+	}, []);
 
-	// Initialize edge states when edges change
-	useEffect(() => {
-		edges.forEach((edge) => {
-			if (!state.edges[edge.id]) {
-				const sourceNode = nodes.find((n) => n.id === edge.source);
-				const targetNode = nodes.find((n) => n.id === edge.target);
-
-				if (sourceNode && targetNode) {
-					// Set up the edge state but keep it inactive
-					dispatch({
-						type: "ACTIVATE_EDGE",
-						edgeId: edge.id,
-						dataType: DataType.ANY, // Default type, will be updated during execution
-					});
-					dispatch({
-						type: "DEACTIVATE_EDGE",
-						edgeId: edge.id,
-					});
-				}
-			}
-		});
-	}, [edges, nodes, state.edges]);
-
-	// Listen for visualization events from document events
-	useEffect(() => {
-		const handleVisualizationEvent = (event: Event) => {
-			const customEvent = event as CustomEvent;
-			const vizEvent = customEvent.detail;
-
-			if (!vizEvent || !vizEvent.type) return;
-
-			switch (vizEvent.type) {
-				case "node_execution_start":
-					if (vizEvent.nodeId) {
-						dispatch({ type: "SET_ACTIVE_NODE", nodeId: vizEvent.nodeId });
-						dispatch({
-							type: "UPDATE_NODE_STATE",
-							nodeId: vizEvent.nodeId,
-							state: { status: "processing", progress: 0, startTime: Date.now() },
-						});
-						dispatch({ type: "ADD_TO_EXECUTION_PATH", nodeId: vizEvent.nodeId });
-					}
-					break;
-
-				case "node_execution_complete":
-					if (vizEvent.nodeId) {
-						dispatch({
-							type: "UPDATE_NODE_STATE",
-							nodeId: vizEvent.nodeId,
-							state: { status: "completed", progress: 100, endTime: Date.now() },
-						});
-
-						// Find outgoing edges to activate with data flow
-						const nodeOutgoingEdges = edges.filter((edge) => edge.source === vizEvent.nodeId);
-
-						nodeOutgoingEdges.forEach((edge) => {
-							// Determine data type - simplified approach
-							const dataType = (edge.sourceHandle || "default") as DataType;
-							dispatch({
-								type: "ACTIVATE_EDGE",
-								edgeId: edge.id,
-								dataType,
-								dataSnapshot: vizEvent.result,
-							});
-
-							// Schedule deactivation after a delay
-							setTimeout(() => {
-								dispatch({ type: "DEACTIVATE_EDGE", edgeId: edge.id });
-							}, 5000);
-						});
-					}
-					break;
-
-				case "node_execution_error":
-					if (vizEvent.nodeId) {
-						dispatch({
-							type: "UPDATE_NODE_STATE",
-							nodeId: vizEvent.nodeId,
-							state: {
-								status: "error",
-								error: vizEvent.error?.message || String(vizEvent.error),
-								endTime: Date.now(),
-							},
-						});
-					}
-					break;
-
-				case "workflow_execution_start":
-					dispatch({ type: "START_EXECUTION" });
-					break;
-
-				case "workflow_execution_complete":
-				case "workflow_execution_error":
-					dispatch({ type: "STOP_EXECUTION" });
-					break;
-			}
-		};
-
-		// Also listen for configuration updates
-		const handleConfigUpdate = (event: Event) => {
-			const customEvent = event as CustomEvent;
-			const config = customEvent.detail;
-
-			if (config.showDataPreviews !== undefined) {
-				dispatch({ type: "SET_SHOW_DATA_PREVIEWS", value: config.showDataPreviews });
-			}
-
-			if (config.animationSpeed !== undefined) {
-				dispatch({ type: "SET_ANIMATION_SPEED", value: config.animationSpeed });
-			}
-		};
-
-		// Register event listeners
-		document.addEventListener("workflow-visualization-event", handleVisualizationEvent);
-		document.addEventListener("visualization-config-update", handleConfigUpdate);
-
-		return () => {
-			// Remove event listeners on cleanup
-			document.removeEventListener("workflow-visualization-event", handleVisualizationEvent);
-			document.removeEventListener("visualization-config-update", handleConfigUpdate);
-		};
-	}, [edges]);
-
-	const contextValue: DataFlowVisualizationContextValue = {
-		state,
-		startVisualization: () => dispatch({ type: "START_EXECUTION" }),
-		stopVisualization: () => dispatch({ type: "STOP_EXECUTION" }),
-		setActiveNode: (nodeId) => dispatch({ type: "SET_ACTIVE_NODE", nodeId }),
-		updateNodeState: (nodeId, nodeState) => dispatch({ type: "UPDATE_NODE_STATE", nodeId, state: nodeState }),
-		activateEdge: (edgeId, dataType, dataSnapshot) => dispatch({ type: "ACTIVATE_EDGE", edgeId, dataType, dataSnapshot }),
-		deactivateEdge: (edgeId) => dispatch({ type: "DEACTIVATE_EDGE", edgeId }),
-		updateEdgeParticles: (edgeId, particles) => dispatch({ type: "UPDATE_EDGE_PARTICLES", edgeId, particles }),
-		addToExecutionPath: (nodeId) => dispatch({ type: "ADD_TO_EXECUTION_PATH", nodeId }),
-		clearVisualization: () => dispatch({ type: "CLEAR_VISUALIZATION" }),
-		setShowDataPreviews: (value) => dispatch({ type: "SET_SHOW_DATA_PREVIEWS", value }),
-		setAnimationSpeed: (value) => dispatch({ type: "SET_ANIMATION_SPEED", value }),
-		getNodeState: (nodeId) => state.nodes[nodeId],
-		getEdgeState: (edgeId) => state.edges[edgeId],
+	// Provide all values and actions
+	const contextValue: DataFlowVisualizationContextType = {
+		...state,
+		setShowParticles,
+		getEdgeState,
+		activateEdge,
+		deactivateEdge,
+		setEdgeDataSnapshot,
 	};
 
 	return <DataFlowVisualizationContext.Provider value={contextValue}>{children}</DataFlowVisualizationContext.Provider>;
 };
 
-// Custom hook for using the visualization context
-export const useDataFlowVisualization = () => {
-	const context = useContext(DataFlowVisualizationContext);
-	if (context === undefined) {
-		throw new Error("useDataFlowVisualization must be used within a DataFlowVisualizationProvider");
-	}
-	return context;
-};
+export default DataFlowVisualizationContext;

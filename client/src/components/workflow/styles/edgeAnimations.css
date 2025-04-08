@@ -1,0 +1,181 @@
+/* client/src/components/workflow/styles/edgeAnimations.css */
+
+/* 
+ * High-performance edge animations
+ * This file contains optimized CSS animations for edge visualization
+ */
+
+/* Base edge styling */
+.react-flow__edge {
+    transition: opacity 0.3s ease;
+}
+
+.react-flow__edge.selected .react-flow__edge-path {
+    stroke-width: 3px !important;
+}
+
+/* Enhanced animated edge */
+.enhanced-animated-edge .edge-path-base {
+    transition: stroke-width 0.2s, opacity 0.2s;
+}
+
+.enhanced-animated-edge:hover .edge-path-base {
+    opacity: 1 !important;
+}
+
+.enhanced-animated-edge.selected .edge-path-base {
+    stroke-width: 3px;
+}
+
+/* Particle animations */
+@keyframes flowParticle {
+    0% {
+        offset-distance: 0%;
+        opacity: 0;
+        transform: scale(0.8);
+    }
+
+    15% {
+        opacity: 1;
+        transform: scale(1);
+    }
+
+    85% {
+        opacity: 1;
+        transform: scale(1);
+    }
+
+    100% {
+        offset-distance: 100%;
+        opacity: 0;
+        transform: scale(0.8);
+    }
+}
+
+.particle {
+    offset-rotate: 0deg;
+    filter: drop-shadow(0 0 1.5px var(--edge-color, #5a2783));
+}
+
+.particle-1 {
+    animation: flowParticle 1.2s infinite linear;
+}
+
+.particle-2 {
+    animation: flowParticle 1.2s infinite linear;
+    animation-delay: 0.4s;
+}
+
+.particle-3 {
+    animation: flowParticle 1.2s infinite linear;
+    animation-delay: 0.8s;
+}
+
+/* Pulsing animation for edges */
+@keyframes pulseLine {
+    0% {
+        opacity: 0;
+        stroke-width: 1.5px;
+        stroke-dashoffset: 20;
+    }
+
+    50% {
+        opacity: 0.7;
+        stroke-width: 3px;
+        stroke-dashoffset: 10;
+    }
+
+    100% {
+        opacity: 0;
+        stroke-width: 1.5px;
+        stroke-dashoffset: 0;
+    }
+}
+
+.edge-path-pulse {
+    animation: pulseLine 1.2s infinite ease-in-out;
+    stroke-dasharray: 5, 8;
+}
+
+/* Connection points animations */
+@keyframes pulsePoint {
+    0% {
+        stroke-width: 1;
+        r: 3.5;
+    }
+
+    50% {
+        stroke-width: 1.5;
+        r: 4;
+    }
+
+    100% {
+        stroke-width: 1;
+        r: 3.5;
+    }
+}
+
+.connection-point {
+    transition: r 0.2s ease;
+    animation: pulsePoint 2s infinite ease-in-out;
+}
+
+.enhanced-animated-edge:hover .connection-point {
+    r: 5;
+    animation: none;
+}
+
+/* Glow effect animation */
+@keyframes glowPulse {
+    0% {
+        filter: drop-shadow(0 0 2px rgba(var(--glow-color-rgb), 0.6));
+        opacity: 0.4;
+    }
+
+    50% {
+        filter: drop-shadow(0 0 3px rgba(var(--glow-color-rgb), 0.8));
+        opacity: 0.7;
+    }
+
+    100% {
+        filter: drop-shadow(0 0 2px rgba(var(--glow-color-rgb), 0.6));
+        opacity: 0.4;
+    }
+}
+
+.edge-glow {
+    will-change: opacity, filter;
+    animation: glowPulse 2s infinite ease-in-out;
+}
+
+/* Tooltip animations */
+.edge-tooltip {
+    animation: fadeIn 0.2s ease-out;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translate(-120px, -130px) scale(0.95);
+    }
+
+    to {
+        opacity: 1;
+        transform: translate(-120px, -120px) scale(1);
+    }
+}
+
+/* Performance optimizations */
+.enhanced-animated-edge {
+    will-change: opacity;
+}
+
+.particle {
+    will-change: offset-distance, opacity, transform;
+    contain: layout style paint;
+}
+
+.edge-path-pulse {
+    will-change: opacity, stroke-width, stroke-dashoffset;
+    contain: layout style paint;
+}

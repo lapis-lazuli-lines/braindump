@@ -1,7 +1,9 @@
-// src/components/workflow/WorkflowController.tsx
-import React, { useState, useEffect, useCallback } from "react";
-import ReactFlow, { Controls, MiniMap, Background, Node, Connection } from "reactflow";
+// client/src/components/workflow/WorkflowController.tsx
+import React, { useState, useEffect, useCallback, useRef } from "react";
+import ReactFlow, { Controls, MiniMap, Background, Node, Connection, useReactFlow, ConnectionLineType } from "reactflow";
 import "reactflow/dist/style.css";
+import { toast } from "react-toastify"; // Assume toast notifications are used in the app
+import "./styles/edgeAnimations.css";
 
 import { useWorkflowStore } from "./workflowStore";
 import NodePalette from "./NodePallete";
@@ -12,7 +14,10 @@ import TogglableGuide from "./custom/TogglableGuide";
 import { CSSVariablesStyle } from "./custom/StyledNodes";
 import WorkflowExecutor from "./workflowExecutor";
 import enhancedNodeTypes from "./EnhanceNodes";
-import AnimatedEdge from "./custom/AnimatedEdge"; // Import all enhanced node components
+import EnhancedAnimatedEdge from "./visualization/EnhancedAnimatedEdge";
+import { getDefaultOutputHandle, getDefaultInputHandle } from "./custom/OutputHandleFinder";
+import { DataFlowVisualizationProvider } from "./visualization/DataFlowVisualizationContext";
+import ConnectionHelpTooltip from "./custom/ConnectionHelpTooltip";
 import {
 	EnhancedIdeaNode,
 	EnhancedDraftNode,
@@ -27,30 +32,16 @@ import {
 	EnhancedAudienceNode,
 } from "./EnhanceNodes";
 import { validateNodeConnection } from "./registry/connectionValidator";
-
-// Register all node types
-const nodeTypes = {
-	ideaNode: EnhancedIdeaNode,
-	draftNode: EnhancedDraftNode,
-	mediaNode: EnhancedMediaNode,
-	platformNode: EnhancedPlatformNode,
-	conditionalNode: EnhancedConditionalNode,
-	hashtagNode: EnhancedHashtagNode,
-	scheduleNode: EnhancedScheduleNode,
-	publishNode: EnhancedPublishNode,
-	analyticsNode: EnhancedAnalyticsNode,
-	previewNode: EnhancedPreviewNode,
-	audienceNode: EnhancedAudienceNode,
-};
+import { nodeTypeRegistry } from "./registry/nodeRegistry";
 
 // Define edge types for the flow
 const edgeTypes = {
-	animated: AnimatedEdge,
+	animated: EnhancedAnimatedEdge,
 };
 
 // Workflow controller component
 const WorkflowController: React.FC = () => {
-	const { nodes, edges, onNodesChange, onEdgesChange, onConnect, addNode, updateNodeData, removeNode, setSelectedNode, selectedNode } = useWorkflowStore();
+	const { nodes, edges, onNodesChange, onEdgesChange, onConnect, addNode, updateNodeData, removeNode, setSelectedNode, selectedNode, validateConnection } = useWorkflowStore();
 
 	const [showHelp, setShowHelp] = useState(false);
 	const [showSaveModal, setShowSaveModal] = useState(false);
@@ -65,33 +56,81 @@ const WorkflowController: React.FC = () => {
 		completedNodes: [],
 		failedNodes: [],
 	});
-	const edgeTypes = {
-		animated: AnimatedEdge,
-	};
-	// Add validation function to workflowStore
-	const validateConnection = useCallback(
-		(connection: Connection) => {
-			// Extract source and target node types
-			const sourceNode = nodes.find((n) => n.id === connection.source);
-			const targetNode = nodes.find((n) => n.id === connection.target);
 
-			if (!sourceNode || !targetNode) {
-				return { valid: false, reason: "Source or target node not found" };
-			}
+	// Use a reference to track if we're showing a validation error
+	// to prevent error message spam
+	const showingValidationError = useRef(false);
 
-			// Use the validation logic from connectionValidator
-			return validateNodeConnection(connection, nodes);
-		},
-		[nodes]
-	);
-	// isValidConnection for ReactFlow
+	// Add a function to show validation error message
+	const showValidationError = useCallback((result: { valid: boolean; reason?: string; suggestion?: string }) => {
+		if (!result.valid && !showingValidationError.current) {
+			showingValidationError.current = true;
+
+			// Show toast notification with error reason and suggestion
+			const message = (
+				<div>
+					<div>
+						<strong>Invalid Connection</strong>
+					</div>
+					<div>{result.reason}</div>
+					{result.suggestion && <div className="text-sm mt-1 text-gray-600">Tip: {result.suggestion}</div>}
+				</div>
+			);
+
+			toast.error(message, {
+				onClose: () => {
+					showingValidationError.current = false;
+				},
+				autoClose: 3000,
+			});
+		}
+	}, []);
+
+	// Connection validation function - reuse the validation logic consistently
 	const isValidConnection = useCallback(
 		(connection: Connection) => {
+			console.log("isValidConnection check:", connection);
 			const result = validateConnection(connection);
+			console.log("Validation result:", result);
+
+			if (!result.valid) {
+				// Only show error if user actually tried to complete the connection
+				// This avoids showing errors during dragging
+				if (connection.source && connection.target) {
+					showValidationError(result);
+				}
+			}
+
 			return result.valid;
 		},
-		[validateConnection]
+		[validateConnection, showValidationError]
 	);
+	// Intercept connection attempts to provide feedback and fix handle IDs
+	const handleConnect = useCallback(
+		(params: Connection) => {
+			console.log("Connection attempt in controller:", params);
+
+			// Create a complete connection object with default handles if needed
+			const enhancedParams = { ...params };
+
+			// Log the validation result
+			const result = validateConnection(enhancedParams);
+			console.log("Validation result:", result);
+
+			if (!result.valid) {
+				showValidationError(result);
+				return false;
+			}
+
+			// Call the store's connect function with the enhanced params
+			const connectionAdded = onConnect(enhancedParams);
+			console.log("Connection added:", connectionAdded);
+
+			return connectionAdded;
+		},
+		[onConnect, validateConnection, showValidationError]
+	);
+
 	// Register global handlers for node actions
 	useEffect(() => {
 		window.editWorkflowNode = (nodeId: string) => {
@@ -158,7 +197,7 @@ const WorkflowController: React.FC = () => {
 	// Execute the workflow
 	const executeWorkflow = async () => {
 		if (nodes.length === 0) {
-			alert("Add some nodes to your workflow before executing");
+			toast.warning("Add some nodes to your workflow before executing");
 			return;
 		}
 
@@ -214,7 +253,7 @@ const WorkflowController: React.FC = () => {
 			});
 		} catch (error) {
 			console.error("Workflow execution failed:", error);
-			alert(`Workflow execution failed: ${error instanceof Error ? error.message : "Unknown error"}`);
+			toast.error(`Workflow execution failed: ${error instanceof Error ? error.message : "Unknown error"}`);
 		} finally {
 			setIsExecuting(false);
 		}
@@ -250,11 +289,17 @@ const WorkflowController: React.FC = () => {
 						edges={edges}
 						onNodesChange={onNodesChange}
 						onEdgesChange={onEdgesChange}
-						onConnect={onConnect}
-						nodeTypes={enhancedNodeTypes} // Use the default export
+						onConnect={handleConnect} // Use the same validated connect handler
+						nodeTypes={enhancedNodeTypes}
 						edgeTypes={edgeTypes}
-						isValidConnection={isValidConnection} // Add validation check
+						isValidConnection={isValidConnection} // Use the same validation
 						connectionRadius={20}
+						connectionLineStyle={{
+							stroke: "#5a2783",
+							strokeWidth: 2,
+							strokeDasharray: "5,5",
+						}}
+						connectionLineType={ConnectionLineType.Bezier}
 						fitView>
 						<div className="fixed bottom-4 right-4 bg-white p-4 rounded-lg shadow-lg border border-purple-200 max-w-md z-50">
 							<div className="flex items-center justify-between mb-2">
@@ -329,98 +374,101 @@ const WorkflowController: React.FC = () => {
 	};
 
 	return (
-		<div className="h-full flex flex-col" style={{ height: "100%", width: "100%" }}>
-			{/* CSS Variables for Node Styling */}
-			<CSSVariablesStyle />
+		<DataFlowVisualizationProvider>
+			<div className="h-full flex flex-col" style={{ height: "100%", width: "100%" }}>
+				{/* CSS Variables for Node Styling */}
+				<CSSVariablesStyle />
 
-			{/* Toolbar */}
-			<div className="bg-white border-b border-gray-200 p-3 flex items-center justify-between">
-				<div className="flex items-center">
-					<h1 className="text-xl font-bold text-gray-800 mr-4">Workflow Editor</h1>
-					<button className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md text-sm flex items-center mr-2" onClick={() => setShowHelp(true)}>
-						<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-							<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-						</svg>
-						Help
-					</button>
-				</div>
-
-				<div className="flex items-center">
-					<button
-						className="px-3 py-1.5 border border-gray-300 hover:bg-gray-50 text-gray-700 rounded-md text-sm flex items-center mr-2"
-						onClick={() => setShowSaveModal(true)}>
-						<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-							<path
-								strokeLinecap="round"
-								strokeLinejoin="round"
-								strokeWidth={2}
-								d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"
-							/>
-						</svg>
-						Save Workflow
-					</button>
-					<button
-						className={`px-4 py-1.5 bg-[#5a2783] hover:bg-[#6b2f9c] text-white rounded-md text-sm flex items-center ${
-							isExecuting ? "opacity-50 cursor-not-allowed" : ""
-						}`}
-						onClick={executeWorkflow}
-						disabled={isExecuting}>
-						<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-							<path
-								strokeLinecap="round"
-								strokeLinejoin="round"
-								strokeWidth={2}
-								d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"
-							/>
-							<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-						</svg>
-						{isExecuting ? "Executing..." : "Execute Workflow"}
-					</button>
-				</div>
-			</div>
-
-			{/* Main Content Area */}
-			<div className="flex-1 flex overflow-hidden" style={{ height: "calc(100% - 60px)" }}>
-				{/* Node Palette */}
-				<div className="w-64 bg-gray-100 p-4 border-r border-gray-300 overflow-y-auto">
-					<NodePalette />
-				</div>
-
-				{/* Flow Editor */}
-				<div className="flex-1 h-full" style={{ position: "relative", minHeight: "500px" }} onDragOver={onDragOver} onDrop={onDrop}>
-					<ReactFlow
-						nodes={nodes}
-						edges={edges}
-						onNodesChange={onNodesChange}
-						onEdgesChange={onEdgesChange}
-						onConnect={onConnect}
-						onNodeClick={handleNodeClick}
-						nodeTypes={nodeTypes}
-						edgeTypes={edgeTypes}
-						fitView
-						style={{ width: "100%", height: "100%" }}>
-						<Controls />
-						<MiniMap />
-						<Background color="#aaa" gap={12} size={1} />
-					</ReactFlow>
-				</div>
-				{selectedNode && (
-					<div className="w-[88] bg-white border-l border-gray-300 flex flex-col h-full overflow-hidden">
-						<div className="overflow-y-auto flex-grow">
-							<NodeDetailsPanel selectedNode={selectedNode} updateNodeData={updateNodeData} onDeleteNode={removeNode} />
-						</div>
+				{/* Toolbar */}
+				<div className="bg-white border-b border-gray-200 p-3 flex items-center justify-between">
+					<div className="flex items-center">
+						<h1 className="text-xl font-bold text-gray-800 mr-4">Workflow Editor</h1>
+						<button className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md text-sm flex items-center mr-2" onClick={() => setShowHelp(true)}>
+							<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+								<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+							</svg>
+							Help
+						</button>
 					</div>
-				)}
+
+					<div className="flex items-center">
+						<button
+							className="px-3 py-1.5 border border-gray-300 hover:bg-gray-50 text-gray-700 rounded-md text-sm flex items-center mr-2"
+							onClick={() => setShowSaveModal(true)}>
+							<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+								<path
+									strokeLinecap="round"
+									strokeLinejoin="round"
+									strokeWidth={2}
+									d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"
+								/>
+							</svg>
+							Save Workflow
+						</button>
+						<button
+							className={`px-4 py-1.5 bg-[#5a2783] hover:bg-[#6b2f9c] text-white rounded-md text-sm flex items-center ${
+								isExecuting ? "opacity-50 cursor-not-allowed" : ""
+							}`}
+							onClick={executeWorkflow}
+							disabled={isExecuting}>
+							<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+								<path
+									strokeLinecap="round"
+									strokeLinejoin="round"
+									strokeWidth={2}
+									d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"
+								/>
+								<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+							</svg>
+							{isExecuting ? "Executing..." : "Execute Workflow"}
+						</button>
+					</div>
+				</div>
+
+				{/* Main Content Area */}
+				<div className="flex-1 flex overflow-hidden" style={{ height: "calc(100% - 60px)" }}>
+					{/* Node Palette */}
+					<div className="w-64 bg-gray-100 p-4 border-r border-gray-300 overflow-y-auto">
+						<NodePalette />
+					</div>
+
+					{/* Flow Editor */}
+					<div className="flex-1 h-full" style={{ position: "relative", minHeight: "500px" }} onDragOver={onDragOver} onDrop={onDrop}>
+						<ReactFlow
+							nodes={nodes}
+							edges={edges}
+							onNodesChange={onNodesChange}
+							onEdgesChange={onEdgesChange}
+							onConnect={handleConnect} // Use the validated connect handler
+							onNodeClick={handleNodeClick}
+							nodeTypes={enhancedNodeTypes}
+							edgeTypes={edgeTypes}
+							isValidConnection={isValidConnection} // Use validation consistently
+							fitView
+							style={{ width: "100%", height: "100%" }}>
+							<Controls />
+							<MiniMap />
+							<Background color="#aaa" gap={12} size={1} />
+						</ReactFlow>
+					</div>
+					{selectedNode && (
+						<div className="w-[88] bg-white border-l border-gray-300 flex flex-col h-full overflow-hidden">
+							<div className="overflow-y-auto flex-grow">
+								<NodeDetailsPanel selectedNode={selectedNode} updateNodeData={updateNodeData} onDeleteNode={removeNode} />
+							</div>
+						</div>
+					)}
+				</div>
+
+				{/* Modals */}
+				<HelpModal isOpen={showHelp} onClose={() => setShowHelp(false)} />
+
+				<SaveWorkflowModal isOpen={showSaveModal} onClose={() => setShowSaveModal(false)} onSave={() => setShowSaveModal(false)} />
+
+				{/* Execution Status */}
+				{renderExecutionStatus()}
 			</div>
-
-			{/* Modals */}
-			<HelpModal isOpen={showHelp} onClose={() => setShowHelp(false)} />
-
-			<SaveWorkflowModal isOpen={showSaveModal} onClose={() => setShowSaveModal(false)} onSave={() => setShowSaveModal(false)} />
-
-			{/* Execution Status */}
-			{renderExecutionStatus()}
-		</div>
+		</DataFlowVisualizationProvider>
 	);
 };
 

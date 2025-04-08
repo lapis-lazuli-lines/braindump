@@ -1,6 +1,7 @@
 // client/src/components/workflow/EnhanceNodes.tsx
 import React from "react";
 import { NodeProps } from "reactflow";
+import ContentPreviewNode from "./nodes/ContentPreviewNode";
 
 // Import base node components
 import { IdeaNode, DraftNode, MediaNode, PlatformNode, ConditionalNode } from "./custom/StyledNodes";
@@ -44,6 +45,7 @@ export const EnhancedPublishNode = enhanceNode(PublishNode);
 export const EnhancedAnalyticsNode = enhanceNode(AnalyticsNode);
 export const EnhancedPreviewNode = enhanceNode(PreviewNode); // And enhanced here
 export const EnhancedAudienceNode = enhanceNode(AudienceNode);
+export const EnhancedContentPreviewNode = enhanceNode(ContentPreviewNode);
 
 /**
  * Mapping of node types to their enhanced components.
@@ -60,6 +62,7 @@ export const enhancedNodeTypes = {
 	publishNode: EnhancedPublishNode,
 	analyticsNode: EnhancedAnalyticsNode,
 	previewNode: EnhancedPreviewNode,
+	contentPreviewNode: EnhancedContentPreviewNode,
 	audienceNode: EnhancedAudienceNode,
 };
 

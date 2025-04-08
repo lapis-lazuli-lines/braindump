@@ -1,4 +1,3 @@
-// client/src/components/workflow/nodes/PreviewNode.tsx
 import React, { useState, useEffect, useCallback } from "react";
 import { NodeProps } from "reactflow";
 import BaseNode from "./BaseNode";
@@ -20,392 +19,212 @@ interface CombinedContent {
 }
 
 /**
- * Enhanced PreviewNode Component
+ * Content Preview Node
  *
- * Displays a platform-specific preview of the content by integrating
- * data from Draft, Hashtag, Media, and Platform nodes
+ * This node integrates content from Draft, Platform, Media, and Hashtag nodes
+ * to create a platform-specific preview that shows how the content will appear
+ * when published.
  */
-const PreviewNode: React.FC<NodeProps> = (props) => {
+const ContentPreviewNode: React.FC<NodeProps> = (props) => {
 	const { id, data } = props;
 	const { updateNodeData } = useWorkflowStore();
 
-	// State
+	// View state
 	const [viewAs, setViewAs] = useState<"mobile" | "desktop">(data.viewAs || "mobile");
 	const [darkMode, setDarkMode] = useState<boolean>(data.darkMode || false);
-	const [approvalStatus, setApprovalStatus] = useState<"pending" | "approved" | "rejected" | null>(data.approvalStatus || null);
-	const [feedback, setFeedback] = useState<string>(data.feedback || "");
+
+	// Content state
 	const [content, setContent] = useState<CombinedContent>(data.content || {});
 	const [lastUpdated, setLastUpdated] = useState<string | null>(data.lastUpdated || null);
-	const [debugMode, setDebugMode] = useState<boolean>(false);
-	const [dataStatus, setDataStatus] = useState<{
-		platform: string;
-		draft: string;
-		media: string;
-		hashtags: string;
-	}>({
-		platform: "Not found",
-		draft: "Not found",
-		media: "Not found",
-		hashtags: "Not found",
-	});
 
-	// Input/output data registration for data flow visualization
-	const { registerData: registerPlatformData } = useDataSnapshotRegistration(id, "platform");
-	const { registerData: registerDraftData } = useDataSnapshotRegistration(id, "draft");
-	const { registerData: registerHashtagsData } = useDataSnapshotRegistration(id, "hashtags");
-	const { registerData: registerMediaData } = useDataSnapshotRegistration(id, "media");
-	const { registerData: registerOutputData } = useDataSnapshotRegistration(id, "approved");
+	// Approval workflow state
+	const [approvalStatus, setApprovalStatus] = useState<"pending" | "approved" | "rejected" | null>(data.approvalStatus || null);
+	const [feedback, setFeedback] = useState<string>(data.feedback || "");
 
-	// Debug logging function
-	const logDebugInfo = useCallback(
-		(title: string, obj: any) => {
-			if (debugMode) {
-				console.group(`PreviewNode(${id}): ${title}`);
-				console.log(obj);
-				console.groupEnd();
-			}
-		},
-		[id, debugMode]
-	);
+	// Register for data flow visualization
+	// Use handle IDs that match the node registry definition
+	const draftInputPortId = `draft`;
+	const platformInputPortId = `platform`;
+	const mediaInputPortId = `media`;
+	const hashtagsInputPortId = `hashtags`;
+	const outputPortId = `approved`;
 
-	// Process incoming data from source nodes
+	const { registerData: registerDraftData } = useDataSnapshotRegistration(id, draftInputPortId);
+	const { registerData: registerPlatformData } = useDataSnapshotRegistration(id, platformInputPortId);
+	const { registerData: registerMediaData } = useDataSnapshotRegistration(id, mediaInputPortId);
+	const { registerData: registerHashtagsData } = useDataSnapshotRegistration(id, hashtagsInputPortId);
+	const { registerData: registerOutputData } = useDataSnapshotRegistration(id, outputPortId);
+
+	// Function to extract data from input sources
+	const extractInputData = () => {
+		// This node connects to other nodes via the handles defined in the registry
+		// We need to get connection data from the node's data.connections property
+
+		const connections = data.connections || { inputs: {}, outputs: {} };
+		const inputConnections = connections.inputs || {};
+
+		// Process platform input
+		const platformInputs = inputConnections.platform || [];
+		const platformData = platformInputs.length > 0 ? platformInputs[0]?.data : null;
+
+		// Process draft input
+		const draftInputs = inputConnections.draft || [];
+		const draftData = draftInputs.length > 0 ? draftInputs[0]?.data : null;
+
+		// Process media input
+		const mediaInputs = inputConnections.media || [];
+		const mediaData = mediaInputs.length > 0 ? mediaInputs[0]?.data : null;
+
+		// Process hashtags input
+		const hashtagInputs = inputConnections.hashtags || [];
+		const hashtagData = hashtagInputs.length > 0 ? hashtagInputs[0]?.data : null;
+
+		return {
+			platformData,
+			draftData,
+			mediaData,
+			hashtagData,
+		};
+	};
+
+	// Process incoming data and combine into a unified content object
 	useEffect(() => {
-		// Debug node data
-		logDebugInfo("Node Data", data);
-		logDebugInfo("Source Nodes", data.sourceNodes);
-		logDebugInfo("Source Info", data.sourceInfo);
-		logDebugInfo("Connections", data.connections);
+		// Get input data from connections
+		const inputs = extractInputData();
 
-		// Create new content object
-		const newContent: CombinedContent = { ...content };
-		const warnings: string[] = [];
-		const newDataStatus = { ...dataStatus };
+		// Function to combine data from all sources
+		const combineContent = () => {
+			const newContent: CombinedContent = { ...content };
+			const warnings: string[] = [];
 
-		// -------------------------------------------------------------------------
-		// Strategy 1: Try to extract data from each possible source
-		// -------------------------------------------------------------------------
+			// Process platform data
+			if (inputs.platformData) {
+				registerPlatformData({ platform: inputs.platformData });
 
-		// Extract platform data
-		let platformData = null;
+				// Extract platform information
+				if (inputs.platformData.platform) {
+					newContent.platform = inputs.platformData.platform;
+				}
 
-		// Try direct property
-		if (data.platformData) {
-			platformData = data.platformData;
-			newDataStatus.platform = "From platformData property";
-			logDebugInfo("Found platform data in direct property", platformData);
-		}
-		// Try from sourceNodes (data from connected nodes)
-		else if (data.sourceNodes) {
-			const platformNode = data.sourceNodes.find((node: any) => node.type === "platformNode" || (node.data && (node.data.platform || node.data.platformContent)));
-
-			if (platformNode) {
-				platformData = platformNode.data;
-				newDataStatus.platform = "From sourceNodes";
-				logDebugInfo("Found platform data in sourceNodes", platformData);
-			}
-		}
-		// Try from sourceInfo
-		else if (data.sourceInfo && data.sourceInfo.platform && data.sourceInfo.platform.length > 0) {
-			platformData = data.sourceInfo.platform[0].data;
-			newDataStatus.platform = "From sourceInfo";
-			logDebugInfo("Found platform data in sourceInfo", platformData);
-		}
-		// Try from connections
-		else if (data.connections && data.connections.inputs && data.connections.inputs.platform) {
-			const platformNodeId = data.connections.inputs.platform.sources[0];
-			// We'd need a way to get the actual node data here
-			newDataStatus.platform = "Found in connections, but need node data";
-			logDebugInfo("Found platform connection", data.connections.inputs.platform);
-		}
-
-		// Process platform data if found
-		if (platformData) {
-			registerPlatformData({ platform: platformData });
-
-			// Extract platform information - try all possible locations
-			if (platformData.platform) {
-				newContent.platform = platformData.platform;
-			} else if (platformData.platformContent && platformData.platformContent.platform) {
-				newContent.platform = platformData.platformContent.platform;
-			}
-
-			// If platform data includes content, use it
-			if (platformData.platformContent && platformData.platformContent.draft) {
-				newContent.draft = platformData.platformContent.draft;
-			} else if (platformData.formattedContent) {
-				newContent.draft = platformData.formattedContent;
-			} else if (platformData.content) {
-				newContent.draft = typeof platformData.content === "string" ? platformData.content : platformData.content.text;
-			}
-		}
-
-		// Extract draft data
-		let draftData = null;
-
-		// Try direct property
-		if (data.draftData) {
-			draftData = data.draftData;
-			newDataStatus.draft = "From draftData property";
-			logDebugInfo("Found draft data in direct property", draftData);
-		}
-		// Try from sourceNodes
-		else if (data.sourceNodes) {
-			const draftNode = data.sourceNodes.find((node: any) => node.type === "draftNode" || (node.data && (node.data.draft || node.data.content)));
-
-			if (draftNode) {
-				draftData = draftNode.data;
-				newDataStatus.draft = "From sourceNodes";
-				logDebugInfo("Found draft data in sourceNodes", draftData);
-			}
-		}
-		// Try from sourceInfo
-		else if (data.sourceInfo && data.sourceInfo.draft && data.sourceInfo.draft.length > 0) {
-			draftData = data.sourceInfo.draft[0].data;
-			newDataStatus.draft = "From sourceInfo";
-			logDebugInfo("Found draft data in sourceInfo", draftData);
-		}
-		// Try from connections
-		else if (data.connections && data.connections.inputs && data.connections.inputs.draft) {
-			const draftNodeId = data.connections.inputs.draft.sources[0];
-			newDataStatus.draft = "Found in connections, but need node data";
-			logDebugInfo("Found draft connection", data.connections.inputs.draft);
-		}
-
-		// Process draft data if found
-		if (draftData) {
-			registerDraftData({ draft: draftData });
-
-			// Only override if not already set by platform
-			if (!newContent.draft) {
-				// Try all possible ways the draft might be stored
-				newContent.draft = draftData.draft || draftData.content || (typeof draftData === "string" ? draftData : null);
-			}
-
-			// Check for platform-specific content length restrictions
-			if (newContent.draft && newContent.platform) {
-				const maxLengths: Record<string, number> = {
-					twitter: 280,
-					instagram: 2200,
-					facebook: 63206,
-					linkedin: 3000,
-					tiktok: 2200,
-				};
-
-				const maxLength = maxLengths[newContent.platform.toLowerCase()];
-				if (maxLength && newContent.draft.length > maxLength) {
-					warnings.push(`Content exceeds ${newContent.platform} limit of ${maxLength} characters`);
+				// If platform data includes other content, use it
+				if (inputs.platformData.content) {
+					newContent.draft = inputs.platformData.content.text || inputs.platformData.content;
 				}
 			}
-		}
 
-		// Extract media data
-		let mediaData = null;
+			// Process draft data
+			if (inputs.draftData) {
+				registerDraftData({ draft: inputs.draftData });
 
-		// Try direct property
-		if (data.mediaData) {
-			mediaData = data.mediaData;
-			newDataStatus.media = "From mediaData property";
-			logDebugInfo("Found media data in direct property", mediaData);
-		}
-		// Try from sourceNodes
-		else if (data.sourceNodes) {
-			const mediaNode = data.sourceNodes.find((node: any) => node.type === "mediaNode" || (node.data && (node.data.selectedImage || node.data.media)));
+				// Only override if not already set by platform
+				if (!newContent.draft) {
+					// Draft nodes might store content in different properties
+					newContent.draft = inputs.draftData.draft || inputs.draftData.content || (typeof inputs.draftData === "string" ? inputs.draftData : "");
+				}
 
-			if (mediaNode) {
-				mediaData = mediaNode.data;
-				newDataStatus.media = "From sourceNodes";
-				logDebugInfo("Found media data in sourceNodes", mediaData);
-			}
-		}
-		// Try from sourceInfo
-		else if (data.sourceInfo && data.sourceInfo.media && data.sourceInfo.media.length > 0) {
-			mediaData = data.sourceInfo.media[0].data;
-			newDataStatus.media = "From sourceInfo";
-			logDebugInfo("Found media data in sourceInfo", mediaData);
-		}
-		// Try from connections
-		else if (data.connections && data.connections.inputs && data.connections.inputs.media) {
-			const mediaNodeId = data.connections.inputs.media.sources[0];
-			newDataStatus.media = "Found in connections, but need node data";
-			logDebugInfo("Found media connection", data.connections.inputs.media);
-		}
+				// Check for platform-specific content length restrictions
+				if (newContent.draft && newContent.platform) {
+					const maxLengths: Record<string, number> = {
+						twitter: 280,
+						instagram: 2200,
+						facebook: 63206,
+						linkedin: 3000,
+						tiktok: 2200,
+					};
 
-		// Process media data if found
-		if (mediaData) {
-			registerMediaData({ media: mediaData });
-
-			// Extract media from different possible structures
-			if (mediaData.selectedImage) {
-				newContent.media = {
-					url: mediaData.selectedImage.url || mediaData.selectedImage.urls?.small,
-					urls: mediaData.selectedImage.urls,
-					alt_description: mediaData.selectedImage.alt_description,
-					type: mediaData.selectedImage.type || "image",
-				};
-			} else if (mediaData.media) {
-				newContent.media = {
-					url: mediaData.media.url || mediaData.media.urls?.small,
-					urls: mediaData.media.urls,
-					alt_description: mediaData.media.alt_description,
-					type: mediaData.media.type || "image",
-				};
-			} else if (mediaData.url) {
-				newContent.media = {
-					url: mediaData.url,
-					urls: mediaData.urls || { small: mediaData.url },
-					alt_description: mediaData.alt_description,
-					type: mediaData.type || "image",
-				};
-			}
-
-			// Check platform-specific media requirements
-			if (newContent.platform) {
-				if (newContent.platform.toLowerCase() === "instagram" && !newContent.media) {
-					warnings.push("Instagram posts typically require an image");
-				} else if (
-					newContent.platform.toLowerCase() === "twitter" &&
-					newContent.media &&
-					newContent.media.type === "video" &&
-					newContent.draft &&
-					newContent.draft.length > 240
-				) {
-					warnings.push("Twitter videos reduce text limit to 240 characters");
+					const maxLength = maxLengths[newContent.platform.toLowerCase()];
+					if (maxLength && newContent.draft.length > maxLength) {
+						warnings.push(`Content exceeds ${newContent.platform} limit of ${maxLength} characters`);
+					}
 				}
 			}
-		}
 
-		// Extract hashtag data
-		let hashtagData = null;
+			// Process hashtag data
+			if (inputs.hashtagData) {
+				registerHashtagsData({ hashtags: inputs.hashtagData });
 
-		// Try direct property
-		if (data.hashtagsData || data.hashtagData) {
-			hashtagData = data.hashtagsData || data.hashtagData;
-			newDataStatus.hashtags = "From hashtagsData property";
-			logDebugInfo("Found hashtag data in direct property", hashtagData);
-		}
-		// Try from sourceNodes
-		else if (data.sourceNodes) {
-			const hashtagNode = data.sourceNodes.find((node: any) => node.type === "hashtagNode" || (node.data && (node.data.hashtags || node.data.tags)));
+				// Only override if not already set by platform
+				if (!newContent.hashtags) {
+					// Extract hashtags from different possible structures
+					newContent.hashtags = inputs.hashtagData.tags
+						? inputs.hashtagData.tags
+						: inputs.hashtagData.hashtags
+						? inputs.hashtagData.hashtags
+						: Array.isArray(inputs.hashtagData)
+						? inputs.hashtagData
+						: [];
+				}
 
-			if (hashtagNode) {
-				hashtagData = hashtagNode.data;
-				newDataStatus.hashtags = "From sourceNodes";
-				logDebugInfo("Found hashtag data in sourceNodes", hashtagData);
-			}
-		}
-		// Try from sourceInfo
-		else if (data.sourceInfo && data.sourceInfo.hashtags && data.sourceInfo.hashtags.length > 0) {
-			hashtagData = data.sourceInfo.hashtags[0].data;
-			newDataStatus.hashtags = "From sourceInfo";
-			logDebugInfo("Found hashtag data in sourceInfo", hashtagData);
-		}
-		// Try from connections
-		else if (data.connections && data.connections.inputs && data.connections.inputs.hashtags) {
-			const hashtagNodeId = data.connections.inputs.hashtags.sources[0];
-			newDataStatus.hashtags = "Found in connections, but need node data";
-			logDebugInfo("Found hashtag connection", data.connections.inputs.hashtags);
-		}
-
-		// Process hashtag data if found
-		if (hashtagData) {
-			registerHashtagsData({ hashtags: hashtagData });
-
-			// Extract hashtags from different possible structures
-			if (Array.isArray(hashtagData)) {
-				newContent.hashtags = hashtagData;
-			} else if (hashtagData.hashtags && Array.isArray(hashtagData.hashtags)) {
-				newContent.hashtags = hashtagData.hashtags;
-			} else if (hashtagData.tags && Array.isArray(hashtagData.tags)) {
-				newContent.hashtags = hashtagData.tags;
-			}
-
-			// Check platform-specific hashtag limitations
-			if (newContent.hashtags && newContent.platform) {
-				if (newContent.platform.toLowerCase() === "twitter" && newContent.hashtags.length > 10) {
-					warnings.push("Twitter posts work best with fewer than 10 hashtags");
-				} else if (newContent.platform.toLowerCase() === "instagram" && newContent.hashtags.length > 30) {
-					warnings.push("Instagram allows a maximum of 30 hashtags");
-				} else if (newContent.platform.toLowerCase() === "linkedin" && newContent.hashtags.length > 5) {
-					warnings.push("LinkedIn posts perform better with 3-5 relevant hashtags");
+				// Check platform-specific hashtag limitations
+				if (newContent.hashtags && newContent.platform) {
+					if (newContent.platform.toLowerCase() === "twitter" && newContent.hashtags.length > 10) {
+						warnings.push("Twitter posts work best with fewer than 10 hashtags");
+					} else if (newContent.platform.toLowerCase() === "instagram" && newContent.hashtags.length > 30) {
+						warnings.push("Instagram allows a maximum of 30 hashtags");
+					} else if (newContent.platform.toLowerCase() === "linkedin" && newContent.hashtags.length > 5) {
+						warnings.push("LinkedIn posts perform better with 3-5 relevant hashtags");
+					}
 				}
 			}
-		}
 
-		// -------------------------------------------------------------------------
-		// Strategy 2: As a fallback, look for data directly on the node data
-		// -------------------------------------------------------------------------
+			// Process media data
+			if (inputs.mediaData) {
+				registerMediaData({ media: inputs.mediaData });
 
-		if (!newContent.platform && data.platform) {
-			newContent.platform = data.platform;
-			newDataStatus.platform = "From direct node data";
-			logDebugInfo("Found platform directly on node data", data.platform);
-		}
+				// Only override if not already set by platform
+				if (!newContent.media) {
+					// Extract media from different possible structures
+					newContent.media = {
+						url: inputs.mediaData.url || (inputs.mediaData.selectedImage ? inputs.mediaData.selectedImage.url : undefined),
+						urls: inputs.mediaData.urls || (inputs.mediaData.selectedImage ? inputs.mediaData.selectedImage.urls : undefined) || { small: inputs.mediaData.url },
+						alt_description:
+							inputs.mediaData.alt ||
+							inputs.mediaData.alt_description ||
+							(inputs.mediaData.selectedImage ? inputs.mediaData.selectedImage.alt_description : undefined),
+						type: inputs.mediaData.type || (inputs.mediaData.selectedImage ? inputs.mediaData.selectedImage.type : "image"),
+					};
+				}
 
-		if (!newContent.draft && data.draft) {
-			newContent.draft = data.draft;
-			newDataStatus.draft = "From direct node data";
-			logDebugInfo("Found draft directly on node data", data.draft);
-		}
-
-		if (!newContent.media && data.media) {
-			newContent.media = data.media;
-			newDataStatus.media = "From direct node data";
-			logDebugInfo("Found media directly on node data", data.media);
-		}
-
-		if (!newContent.hashtags && data.hashtags) {
-			newContent.hashtags = data.hashtags;
-			newDataStatus.hashtags = "From direct node data";
-			logDebugInfo("Found hashtags directly on node data", data.hashtags);
-		}
-
-		// -------------------------------------------------------------------------
-		// Strategy 3: As a last resort, check for data in the content property
-		// -------------------------------------------------------------------------
-
-		if (data.content) {
-			if (!newContent.platform && data.content.platform) {
-				newContent.platform = data.content.platform;
-				newDataStatus.platform = "From content property";
+				// Check platform-specific media requirements
+				if (newContent.platform) {
+					if (newContent.platform.toLowerCase() === "instagram" && !newContent.media) {
+						warnings.push("Instagram posts typically require an image");
+					} else if (
+						newContent.platform.toLowerCase() === "twitter" &&
+						newContent.media &&
+						newContent.media.type === "video" &&
+						newContent.draft &&
+						newContent.draft.length > 240
+					) {
+						warnings.push("Twitter videos reduce text limit to 240 characters");
+					}
+				}
 			}
 
-			if (!newContent.draft && data.content.draft) {
-				newContent.draft = data.content.draft;
-				newDataStatus.draft = "From content property";
+			// Add any detected warnings
+			if (warnings.length > 0) {
+				newContent.warnings = warnings;
 			}
 
-			if (!newContent.media && data.content.media) {
-				newContent.media = data.content.media;
-				newDataStatus.media = "From content property";
-			}
+			return newContent;
+		};
 
-			if (!newContent.hashtags && data.content.hashtags) {
-				newContent.hashtags = data.content.hashtags;
-				newDataStatus.hashtags = "From content property";
-			}
-		}
-
-		// Add any detected warnings
-		if (warnings.length > 0) {
-			newContent.warnings = warnings;
-		}
-
-		// Update content and status
-		setContent(newContent);
-		setDataStatus(newDataStatus);
+		// Update content when source data changes
+		const updatedContent = combineContent();
+		setContent(updatedContent);
 		setLastUpdated(new Date().toISOString());
 
 		// Update node data
 		updateNodeData(id, {
 			...data,
-			content: newContent,
+			content: updatedContent,
 			lastUpdated: new Date().toISOString(),
 		});
 
-		// Register output data if approved
+		// Register output data if content is approved
 		if (approvalStatus === "approved") {
 			registerOutputData({
-				content: newContent,
+				content: updatedContent,
 				approvalStatus,
 				feedback,
 				viewAs,
@@ -413,7 +232,7 @@ const PreviewNode: React.FC<NodeProps> = (props) => {
 			});
 		}
 	}, [
-		data,
+		data.connections,
 		id,
 		updateNodeData,
 		registerPlatformData,
@@ -426,12 +245,9 @@ const PreviewNode: React.FC<NodeProps> = (props) => {
 		viewAs,
 		darkMode,
 		content,
-		dataStatus,
-		debugMode,
-		logDebugInfo,
 	]);
 
-	// Toggle device view
+	// Toggle device view between mobile and desktop
 	const toggleDeviceView = useCallback(() => {
 		const newViewAs = viewAs === "mobile" ? "desktop" : "mobile";
 		setViewAs(newViewAs);
@@ -445,12 +261,7 @@ const PreviewNode: React.FC<NodeProps> = (props) => {
 		updateNodeData(id, { darkMode: newDarkMode });
 	}, [darkMode, id, updateNodeData]);
 
-	// Toggle debug mode
-	const toggleDebugMode = useCallback(() => {
-		setDebugMode(!debugMode);
-	}, [debugMode]);
-
-	// Handle approval
+	// Handle approval of content
 	const handleApprove = useCallback(() => {
 		setApprovalStatus("approved");
 		updateNodeData(id, { approvalStatus: "approved" });
@@ -465,7 +276,7 @@ const PreviewNode: React.FC<NodeProps> = (props) => {
 		});
 	}, [content, feedback, viewAs, darkMode, id, updateNodeData, registerOutputData]);
 
-	// Handle rejection
+	// Handle rejection of content
 	const handleReject = useCallback(() => {
 		setApprovalStatus("rejected");
 		updateNodeData(id, { approvalStatus: "rejected" });
@@ -481,7 +292,7 @@ const PreviewNode: React.FC<NodeProps> = (props) => {
 	);
 
 	// Format date for display
-	const formatDateTime = (dateTimeStr: string): string => {
+	const formatDateTime = (dateTimeStr: string) => {
 		try {
 			const date = new Date(dateTimeStr);
 			return date.toLocaleString(undefined, {
@@ -496,7 +307,7 @@ const PreviewNode: React.FC<NodeProps> = (props) => {
 		}
 	};
 
-	// Platform-specific preview renderers
+	// Render platform-specific previews
 	const renderPlatformPreview = () => {
 		if (!content.platform) {
 			return (
@@ -904,35 +715,6 @@ const PreviewNode: React.FC<NodeProps> = (props) => {
 		);
 	};
 
-	// Render debug information
-	const renderDebugInfo = () => {
-		if (!debugMode) return null;
-
-		return (
-			<div className="mt-4 p-2 border border-gray-200 dark:border-gray-700 rounded text-xs bg-gray-50 dark:bg-gray-800">
-				<div className="font-medium mb-1">Debug Information:</div>
-				<div className="grid grid-cols-2 gap-x-2 gap-y-1">
-					<div className="text-gray-600 dark:text-gray-400">Platform:</div>
-					<div>{dataStatus.platform}</div>
-
-					<div className="text-gray-600 dark:text-gray-400">Draft:</div>
-					<div>{dataStatus.draft}</div>
-
-					<div className="text-gray-600 dark:text-gray-400">Media:</div>
-					<div>{dataStatus.media}</div>
-
-					<div className="text-gray-600 dark:text-gray-400">Hashtags:</div>
-					<div>{dataStatus.hashtags}</div>
-				</div>
-
-				<div className="mt-2">
-					<div className="mb-1 font-medium">Content Preview:</div>
-					<pre className="bg-gray-100 dark:bg-gray-900 p-1 rounded overflow-auto text-[10px]">{JSON.stringify(content, null, 2)}</pre>
-				</div>
-			</div>
-		);
-	};
-
 	// Render the preview controls
 	const renderControls = () => {
 		return (
@@ -967,26 +749,6 @@ const PreviewNode: React.FC<NodeProps> = (props) => {
 						{darkMode ? "Dark Mode" : "Light Mode"}
 					</span>
 				</button>
-
-				{/* Debug mode toggle */}
-				<button
-					onClick={toggleDebugMode}
-					className={`px-2 py-1 text-xs rounded-md ml-auto ${
-						debugMode ? "bg-red-100 text-red-700 dark:bg-red-800 dark:text-red-200" : "bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300"
-					}`}>
-					<span className="flex items-center">
-						<svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-							<path
-								strokeLinecap="round"
-								strokeLinejoin="round"
-								strokeWidth={2}
-								d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
-							/>
-							<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-						</svg>
-						{debugMode ? "Hide Debug" : "Debug"}
-					</span>
-				</button>
 			</div>
 		);
 	};
@@ -1008,7 +770,7 @@ const PreviewNode: React.FC<NodeProps> = (props) => {
 		);
 	};
 
-	// Render node content
+	// Render the node content
 	const renderNodeContent = () => {
 		return (
 			<div className={`relative ${darkMode ? "bg-gray-900 text-white" : "bg-gray-50"}`} style={{ minHeight: "100px", maxHeight: "400px", overflow: "auto" }}>
@@ -1079,34 +841,23 @@ const PreviewNode: React.FC<NodeProps> = (props) => {
 									rows={2}
 								/>
 							</div>
-
-							{/* Debug info */}
-							{renderDebugInfo()}
 						</>
 					) : (
-						<div>
-							{/* Preview controls for debugging */}
-							{renderControls()}
-
-							<div className="flex flex-col items-center justify-center h-32 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 mt-2">
-								<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-gray-400 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-									<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-									<path
-										strokeLinecap="round"
-										strokeLinejoin="round"
-										strokeWidth={2}
-										d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
-									/>
-								</svg>
-								<p className={`text-gray-500 dark:text-gray-400 text-sm text-center`}>
-									Connect to a Platform Node to preview content.
-									<br />
-									Also connect Draft, Media, and Hashtag nodes for a complete preview.
-								</p>
-							</div>
-
-							{/* Debug info */}
-							{renderDebugInfo()}
+						<div className="flex flex-col items-center justify-center h-32 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+							<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-gray-400 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+								<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+								<path
+									strokeLinecap="round"
+									strokeLinejoin="round"
+									strokeWidth={2}
+									d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+								/>
+							</svg>
+							<p className={`text-gray-500 dark:text-gray-400 text-sm text-center`}>
+								Connect to a Platform Node to preview content.
+								<br />
+								Also connect Draft, Media, and Hashtag nodes for a complete preview.
+							</p>
 						</div>
 					)}
 				</div>
@@ -1134,4 +885,4 @@ const PreviewNode: React.FC<NodeProps> = (props) => {
 	);
 };
 
-export default PreviewNode;
+export default ContentPreviewNode;

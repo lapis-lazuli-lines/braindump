@@ -381,7 +381,64 @@ export const nodeTypeRegistry: Record<string, NodeTypeDefinition> = {
 			lastUpdated: null,
 		},
 	},
-
+	contentPreviewNode: {
+		type: "contentPreviewNode",
+		title: "Content Preview",
+		description: "Preview and approve content for different social platforms.",
+		category: NodeCategory.PLATFORM,
+		inputs: [
+			{
+				id: "draft",
+				label: "Content Draft",
+				type: DataType.DRAFT,
+				required: false,
+				allowMultiple: false,
+				validSourceTypes: ["draftNode"],
+			},
+			{
+				id: "platform",
+				label: "Platform Settings",
+				type: DataType.PLATFORM_SETTINGS,
+				required: true,
+				allowMultiple: false,
+				validSourceTypes: ["platformNode"],
+			},
+			{
+				id: "media",
+				label: "Media",
+				type: DataType.MEDIA,
+				required: false,
+				allowMultiple: false,
+				validSourceTypes: ["mediaNode"],
+			},
+			{
+				id: "hashtags",
+				label: "Hashtags",
+				type: DataType.HASHTAG_SET,
+				required: false,
+				allowMultiple: false,
+				validSourceTypes: ["hashtagNode"],
+			},
+		],
+		outputs: [
+			{
+				id: "approved",
+				label: "Approved Content",
+				type: DataType.COMBINED_CONTENT,
+				validTargetTypes: ["scheduleNode", "publishNode"],
+			},
+		],
+		icon: "eye",
+		color: "#0369a1", // Blue
+		initialData: {
+			viewAs: "mobile",
+			darkMode: false,
+			approvalStatus: null,
+			feedback: "",
+			content: {},
+			lastUpdated: null,
+		},
+	},
 	// SCHEDULING & PUBLISHING NODES
 	scheduleNode: {
 		type: "scheduleNode",

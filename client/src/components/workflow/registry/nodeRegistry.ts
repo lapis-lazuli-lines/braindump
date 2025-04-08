@@ -321,12 +321,36 @@ export const nodeTypeRegistry: Record<string, NodeTypeDefinition> = {
 		category: NodeCategory.PUBLISHING,
 		inputs: [
 			{
-				id: "content",
-				label: "Platform Content",
-				type: DataType.COMBINED_CONTENT,
+				id: "platform",
+				label: "Platform Settings",
+				type: DataType.PLATFORM_SETTINGS,
 				required: true,
 				allowMultiple: false,
 				validSourceTypes: ["platformNode"],
+			},
+			{
+				id: "draft",
+				label: "Content Draft",
+				type: DataType.DRAFT,
+				required: false,
+				allowMultiple: false,
+				validSourceTypes: ["draftNode"],
+			},
+			{
+				id: "media",
+				label: "Media",
+				type: DataType.MEDIA,
+				required: false,
+				allowMultiple: false,
+				validSourceTypes: ["mediaNode"],
+			},
+			{
+				id: "hashtags",
+				label: "Hashtags",
+				type: DataType.HASHTAG_SET,
+				required: false,
+				allowMultiple: false,
+				validSourceTypes: ["hashtagNode"],
 			},
 			{
 				id: "audience",
@@ -352,6 +376,8 @@ export const nodeTypeRegistry: Record<string, NodeTypeDefinition> = {
 			darkMode: false,
 			approvalStatus: null,
 			feedback: "",
+			content: {},
+			lastUpdated: null,
 		},
 	},
 

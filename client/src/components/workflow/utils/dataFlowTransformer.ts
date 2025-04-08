@@ -198,19 +198,75 @@ export class DataFlowTransformer {
 	/**
 	 * Transform platform data to preview input
 	 */
-	private static transformPlatformToPreview(platformData: PlatformData): Partial<PreviewData> {
+	static transformPlatformToPreview(platformData: PlatformData): Partial<PreviewData> {
 		return {
 			platform: platformData.platformId,
 			content: {
-				text: platformData.content,
-				mediaUrls: platformData.media?.map((m) => m.url) || [],
-				hashtags: platformData.hashtags || [],
+				draft: platformData.content,
+				media: platformData.media?.[0],
+				hashtags: platformData.hashtags,
+				audience: platformData.audience,
+				platformSettings: platformData.postProperties,
 			},
 			renderAs: "mobile",
 			darkMode: false,
 		};
 	}
+	/**
+	 * Transform draft data to preview input
+	 */
+	static transformDraftToPreview(draftData: DraftData): any {
+		return {
+			draft: draftData.content,
+		};
+	}
+	/**
+	 * Transform media data to preview input
+	 */
+	static transformMediaToPreview(mediaData: MediaData): any {
+		return {
+			media: {
+				url: mediaData.url,
+				type: mediaData.type,
+				alt_description: mediaData.alt,
+			},
+		};
+	}
 
+	/**
+	 * Transform hashtag data to preview input
+	 */
+	static transformHashtagsToPreview(hashtagData: HashtagData): any {
+		return {
+			hashtags: hashtagData.tags || [],
+		};
+	}
+
+	/**
+	 * Transform audience data to preview input
+	 */
+	static transformAudienceToPreview(audienceData: AudienceData): any {
+		return {
+			audience: audienceData,
+		};
+	}
+
+	/**
+	 * Transform preview data to schedule or publish input
+	 */
+	static transformPreviewToPublishable(previewData: PreviewData): any {
+		// Only pass approved content
+		if (previewData.approvalStatus !== "approved") {
+			return null;
+		}
+
+		return {
+			platform: previewData.platform,
+			content: previewData.content,
+			approvedAt: new Date().toISOString(),
+			approvalFeedback: previewData.feedback,
+		};
+	}
 	/**
 	 * Transform hashtag data to platform input
 	 */

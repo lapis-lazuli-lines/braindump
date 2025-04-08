@@ -1,6 +1,6 @@
 // src/components/workflow/WorkflowController.tsx
 import React, { useState, useEffect, useCallback } from "react";
-import ReactFlow, { Controls, MiniMap, Background, Node } from "reactflow";
+import ReactFlow, { Controls, MiniMap, Background, Node, Connection } from "reactflow";
 import "reactflow/dist/style.css";
 
 import { useWorkflowStore } from "./workflowStore";
@@ -9,11 +9,10 @@ import NodeDetailsPanel from "./custom/NodeDetailsPanel";
 import HelpModal from "./HelpModal";
 import SaveWorkflowModal from "./SavedWorkflowsModal";
 import TogglableGuide from "./custom/TogglableGuide";
-import AnimatedEdge from "./custom/AnimatedEdge";
 import { CSSVariablesStyle } from "./custom/StyledNodes";
 import WorkflowExecutor from "./workflowExecutor";
-
-// Import all enhanced node components
+import enhancedNodeTypes from "./EnhanceNodes";
+import AnimatedEdge from "./custom/AnimatedEdge"; // Import all enhanced node components
 import {
 	EnhancedIdeaNode,
 	EnhancedDraftNode,
@@ -27,6 +26,7 @@ import {
 	EnhancedPreviewNode,
 	EnhancedAudienceNode,
 } from "./EnhanceNodes";
+import { validateNodeConnection } from "./registry/connectionValidator";
 
 // Register all node types
 const nodeTypes = {
@@ -65,7 +65,33 @@ const WorkflowController: React.FC = () => {
 		completedNodes: [],
 		failedNodes: [],
 	});
+	const edgeTypes = {
+		animated: AnimatedEdge,
+	};
+	// Add validation function to workflowStore
+	const validateConnection = useCallback(
+		(connection: Connection) => {
+			// Extract source and target node types
+			const sourceNode = nodes.find((n) => n.id === connection.source);
+			const targetNode = nodes.find((n) => n.id === connection.target);
 
+			if (!sourceNode || !targetNode) {
+				return { valid: false, reason: "Source or target node not found" };
+			}
+
+			// Use the validation logic from connectionValidator
+			return validateNodeConnection(connection, nodes);
+		},
+		[nodes]
+	);
+	// isValidConnection for ReactFlow
+	const isValidConnection = useCallback(
+		(connection: Connection) => {
+			const result = validateConnection(connection);
+			return result.valid;
+		},
+		[validateConnection]
+	);
 	// Register global handlers for node actions
 	useEffect(() => {
 		window.editWorkflowNode = (nodeId: string) => {
@@ -218,29 +244,43 @@ const WorkflowController: React.FC = () => {
 
 		if (isExecuting) {
 			return (
-				<div className="fixed bottom-4 right-4 bg-white p-4 rounded-lg shadow-lg border border-purple-200 max-w-md z-50">
-					<div className="flex items-center justify-between mb-2">
-						<h3 className="font-bold text-gray-800">Executing Workflow</h3>
-						<div className="animate-pulse bg-purple-500 h-2 w-2 rounded-full"></div>
-					</div>
-					<div className="text-sm text-gray-600">
-						{executionProgress.currentNodeId ? (
-							<div>
-								<p>Processing node: {executionProgress.currentNodeId}</p>
-								<div className="mt-2 h-1.5 w-full bg-gray-200 rounded-full overflow-hidden">
-									<div
-										className="h-full bg-purple-500 rounded-full animate-pulse"
-										style={{ width: `${(executionProgress.completedNodes.length / nodes.length) * 100}%` }}></div>
+				<div className="workflow-container">
+					<ReactFlow
+						nodes={nodes}
+						edges={edges}
+						onNodesChange={onNodesChange}
+						onEdgesChange={onEdgesChange}
+						onConnect={onConnect}
+						nodeTypes={enhancedNodeTypes} // Use the default export
+						edgeTypes={edgeTypes}
+						isValidConnection={isValidConnection} // Add validation check
+						connectionRadius={20}
+						fitView>
+						<div className="fixed bottom-4 right-4 bg-white p-4 rounded-lg shadow-lg border border-purple-200 max-w-md z-50">
+							<div className="flex items-center justify-between mb-2">
+								<h3 className="font-bold text-gray-800">Executing Workflow</h3>
+								<div className="animate-pulse bg-purple-500 h-2 w-2 rounded-full"></div>
+							</div>
+							<div className="text-sm text-gray-600">
+								{executionProgress.currentNodeId ? (
+									<div>
+										<p>Processing node: {executionProgress.currentNodeId}</p>
+										<div className="mt-2 h-1.5 w-full bg-gray-200 rounded-full overflow-hidden">
+											<div
+												className="h-full bg-purple-500 rounded-full animate-pulse"
+												style={{ width: `${(executionProgress.completedNodes.length / nodes.length) * 100}%` }}></div>
+										</div>
+									</div>
+								) : (
+									<p>Initializing workflow execution...</p>
+								)}
+								<div className="mt-2">
+									<p>Completed: {executionProgress.completedNodes.length} nodes</p>
+									{executionProgress.failedNodes.length > 0 && <p className="text-red-500">Failed: {executionProgress.failedNodes.length} nodes</p>}
 								</div>
 							</div>
-						) : (
-							<p>Initializing workflow execution...</p>
-						)}
-						<div className="mt-2">
-							<p>Completed: {executionProgress.completedNodes.length} nodes</p>
-							{executionProgress.failedNodes.length > 0 && <p className="text-red-500">Failed: {executionProgress.failedNodes.length} nodes</p>}
 						</div>
-					</div>
+					</ReactFlow>
 				</div>
 			);
 		}

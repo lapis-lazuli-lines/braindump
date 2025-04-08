@@ -2,6 +2,8 @@
 import { create } from "zustand";
 import { Connection, Edge, EdgeChange, Node, NodeChange, addEdge, OnNodesChange, OnEdgesChange, OnConnect, applyNodeChanges, applyEdgeChanges, NodeRemoveChange } from "reactflow";
 import { produce } from "immer"; // Optional - for immutable state updates
+import { nodeTypeRegistry } from "./registry/nodeRegistry";
+import { validateNodeConnection } from "./registry/connectionValidator";
 
 interface WorkflowState {
 	nodes: Node[];
@@ -10,6 +12,8 @@ interface WorkflowState {
 	onNodesChange: OnNodesChange;
 	onEdgesChange: OnEdgesChange;
 	onConnect: OnConnect;
+	validateConnection: (connection: Connection) => { valid: boolean; reason?: string };
+
 	addNode: (node: Partial<Node>) => void;
 	updateNodeData: (nodeId: string, data: any) => void;
 	removeNode: (nodeId: string) => void;
@@ -30,8 +34,8 @@ const initialNodes: Node[] = [];
 const initialEdges: Edge[] = [];
 
 export const useWorkflowStore = create<WorkflowState>((set, get) => ({
-	nodes: initialNodes,
-	edges: initialEdges,
+	nodes: [],
+	edges: [],
 	selectedNode: null,
 
 	// Fix: Memoize node changes with edge removal logic to prevent cascading updates
@@ -67,18 +71,38 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
 	},
 
 	onConnect: (connection: Connection) => {
-		// Create the new edge
-		const newEdge = {
-			...connection,
-			type: "animated", // Always use animated edges
-		};
+		const validation = get().validateConnection(connection);
+		if (!validation.valid) {
+			// Show validation error notification
+			console.error(`Invalid connection: ${validation.reason}`);
 
-		// Update edges in a single operation
-		set((state) => ({
-			edges: addEdge(newEdge, state.edges),
-		}));
+			// Option to add notification here if you have a notification system
+			// get().addNotification({ type: "error", message: validation.reason || "Invalid connection" });
+
+			return; // Prevent invalid connection
+		}
+
+		// Create the new edge only if valid
+		set({
+			edges: addEdge(
+				{
+					...connection,
+					type: "animated",
+					// Add data attribute to store validation info for visualization
+					data: {
+						validated: true,
+						sourceType: get().nodes.find((n) => n.id === connection.source)?.type,
+						targetType: get().nodes.find((n) => n.id === connection.target)?.type,
+					},
+				},
+				get().edges
+			),
+		});
 	},
-
+	// Extract validation to a separate method for reuse
+	validateConnection: (connection: Connection) => {
+		return validateNodeConnection(connection, get().nodes);
+	},
 	addNode: (node: Partial<Node>) => {
 		const newNode = {
 			id: `node_${Date.now()}`,

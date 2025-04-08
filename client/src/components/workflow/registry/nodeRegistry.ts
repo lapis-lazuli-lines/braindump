@@ -369,6 +369,7 @@ export const nodeTypeRegistry: Record<string, NodeTypeDefinition> = {
 				validTargetTypes: ["scheduleNode", "publishNode"],
 			},
 		],
+
 		icon: "eye",
 		color: "#0369a1", // Blue
 		initialData: {

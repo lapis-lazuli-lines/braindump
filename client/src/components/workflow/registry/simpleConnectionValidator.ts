@@ -81,6 +81,21 @@ export function simpleValidateConnection(
 		return { valid: true };
 	}
 
+	// Allow draft nodes to connect to preview nodes
+	if (sourceType === "draftNode" && targetType === "previewNode") {
+		return { valid: true };
+	}
+
+	// Allow media nodes to connect to preview nodes
+	if (sourceType === "mediaNode" && targetType === "previewNode") {
+		return { valid: true };
+	}
+
+	// Allow hashtag nodes to connect to preview nodes
+	if (sourceType === "hashtagNode" && targetType === "previewNode") {
+		return { valid: true };
+	}
+
 	// Allow audience nodes to connect to preview nodes
 	if (sourceType === "audienceNode" && targetType === "previewNode") {
 		return { valid: true };

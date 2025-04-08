@@ -42,7 +42,7 @@ export const EnhancedHashtagNode = enhanceNode(HashtagNode);
 export const EnhancedScheduleNode = enhanceNode(ScheduleNode);
 export const EnhancedPublishNode = enhanceNode(PublishNode);
 export const EnhancedAnalyticsNode = enhanceNode(AnalyticsNode);
-export const EnhancedPreviewNode = enhanceNode(PreviewNode);
+export const EnhancedPreviewNode = enhanceNode(PreviewNode); // And enhanced here
 export const EnhancedAudienceNode = enhanceNode(AudienceNode);
 
 /**

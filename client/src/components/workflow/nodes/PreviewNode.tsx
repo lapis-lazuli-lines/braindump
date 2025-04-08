@@ -1,720 +1,69 @@
 // client/src/components/workflow/nodes/PreviewNode.tsx
-import React, { useState, useEffect, useCallback } from "react";
-import { NodeProps } from "reactflow";
-import BaseNode from "./BaseNode";
-import { useWorkflowStore } from "../workflowStore";
-import { useDataSnapshotRegistration } from "../visualization/core/TransformationVisualizer";
-
-// Type for combined content from various sources
-interface CombinedContent {
-	draft?: string;
-	platform?: string;
-	hashtags?: string[];
-	media?: {
-		url?: string;
-		urls?: { small?: string; medium?: string; large?: string };
-		alt_description?: string;
-		type?: string;
-	};
-	warnings?: string[];
-}
+import React, { useState } from "react";
+import { Handle, Position, NodeProps } from "reactflow";
+import { StyledNode } from "../custom/StyledNodes";
 
 /**
- * PreviewNode Component
- * Displays a platform-specific preview of the content by integrating
- * data from Draft, Hashtag, Media, and Platform nodes
+ * PreviewNode component
+ * - Accepts input from platform, draft, media, hashtag, and audience nodes
+ * - Shows preview of how content will appear on target platform
+ * - Allows approval/rejection workflow
  */
 const PreviewNode: React.FC<NodeProps> = (props) => {
-	const { id, data } = props;
-	const { updateNodeData } = useWorkflowStore();
+	const { data } = props;
+	const [isPreviewExpanded, setIsPreviewExpanded] = useState(false);
 
-	// State
-	const [viewAs, setViewAs] = useState<"mobile" | "desktop">(data.viewAs || "mobile");
-	const [darkMode, setDarkMode] = useState<boolean>(data.darkMode || false);
-	const [approvalStatus, setApprovalStatus] = useState<"pending" | "approved" | "rejected" | null>(data.approvalStatus || null);
-	const [feedback, setFeedback] = useState<string>(data.feedback || "");
-	const [content, setContent] = useState<CombinedContent>(data.content || {});
-	const [lastUpdated, setLastUpdated] = useState<string | null>(data.lastUpdated || null);
+	// Extract data from connected nodes
+	const platformData = data?.sourceInfo?.platform?.[0]?.data || {};
+	const draftData = data?.sourceInfo?.draft?.[0]?.data || {};
+	const mediaData = data?.sourceInfo?.media?.[0]?.data || {};
+	const hashtagData = data?.sourceInfo?.hashtags?.[0]?.data || {};
+	const audienceData = data?.sourceInfo?.audience?.[0]?.data || {};
 
-	// Input/output data registration for data flow visualization
-	const platformInputPortId = `${id}-platform`;
-	const draftInputPortId = `${id}-draft`;
-	const hashtagsInputPortId = `${id}-hashtags`;
-	const mediaInputPortId = `${id}-media`;
-	const outputPortId = `${id}-output`;
+	// Get specific content from node data
+	const platform = platformData.platform || "";
+	const draftContent = draftData.draft || "";
+	const selectedImage = mediaData.selectedImage || null;
+	const hashtags = hashtagData.hashtags || [];
+	const ageRange = audienceData.ageRange || { min: 18, max: 65 };
+	const interests = audienceData.interests || [];
+	const locations = audienceData.locations || [];
 
-	const { registerData: registerPlatformData } = useDataSnapshotRegistration(id, platformInputPortId);
-	const { registerData: registerDraftData } = useDataSnapshotRegistration(id, draftInputPortId);
-	const { registerData: registerHashtagsData } = useDataSnapshotRegistration(id, hashtagsInputPortId);
-	const { registerData: registerMediaData } = useDataSnapshotRegistration(id, mediaInputPortId);
-	const { registerData: registerOutputData } = useDataSnapshotRegistration(id, outputPortId);
+	// Determine if we have enough data to show a preview
+	// Minimum requirement: platform and draft content
+	const canShowPreview = platform && draftContent;
 
-	// Process incoming data from source nodes
-	useEffect(() => {
-		// Function to combine data from all sources
-		const combineContent = () => {
-			const newContent: CombinedContent = { ...content };
-			const warnings: string[] = [];
-
-			// Process platform data
-			if (data.platformData) {
-				registerPlatformData({ platform: data.platformData });
-				newContent.platform = data.platformData.platform;
-
-				// If platform data includes other content, use it
-				if (data.platformData.content) {
-					newContent.draft = data.platformData.content.text || data.platformData.content;
-				}
-
-				if (data.platformData.hashtags) {
-					newContent.hashtags = data.platformData.hashtags;
-				}
-
-				if (data.platformData.media) {
-					newContent.media = data.platformData.media;
-				}
-			}
-
-			// Process draft data
-			if (data.draftData) {
-				registerDraftData({ draft: data.draftData });
-
-				// Only override if not already set by platform
-				if (!newContent.draft) {
-					newContent.draft = data.draftData.content || data.draftData;
-				}
-
-				// Check for platform-specific content length restrictions
-				if (newContent.draft && newContent.platform) {
-					const maxLengths: Record<string, number> = {
-						twitter: 280,
-						instagram: 2200,
-						facebook: 63206,
-						linkedin: 3000,
-						tiktok: 2200,
-					};
-
-					const maxLength = maxLengths[newContent.platform.toLowerCase()];
-					if (maxLength && newContent.draft.length > maxLength) {
-						warnings.push(`Content exceeds ${newContent.platform} limit of ${maxLength} characters`);
-					}
-				}
-			}
-
-			// Process hashtag data
-			if (data.hashtagsData) {
-				registerHashtagsData({ hashtags: data.hashtagsData });
-
-				// Only override if not already set by platform
-				if (!newContent.hashtags) {
-					newContent.hashtags = Array.isArray(data.hashtagsData.tags) ? data.hashtagsData.tags : Array.isArray(data.hashtagsData) ? data.hashtagsData : [];
-				}
-
-				// Check platform-specific hashtag limitations
-				if (newContent.hashtags && newContent.platform) {
-					if (newContent.platform.toLowerCase() === "twitter" && newContent.hashtags.length > 10) {
-						warnings.push("Twitter posts work best with fewer than 10 hashtags");
-					} else if (newContent.platform.toLowerCase() === "instagram" && newContent.hashtags.length > 30) {
-						warnings.push("Instagram allows a maximum of 30 hashtags");
-					}
-				}
-			}
-
-			// Process media data
-			if (data.mediaData) {
-				registerMediaData({ media: data.mediaData });
-
-				// Only override if not already set by platform
-				if (!newContent.media) {
-					newContent.media = {
-						url: data.mediaData.url,
-						urls: data.mediaData.urls || { small: data.mediaData.url },
-						alt_description: data.mediaData.alt || data.mediaData.alt_description,
-						type: data.mediaData.type,
-					};
-				}
-
-				// Check platform-specific media limitations
-				if (newContent.media && newContent.platform) {
-					if (newContent.platform.toLowerCase() === "twitter" && newContent.media.type === "video" && newContent.draft && newContent.draft.length > 240) {
-						warnings.push("Twitter videos reduce text limit to 240 characters");
-					}
-				}
-			}
-
-			// Add any detected warnings
-			if (warnings.length > 0) {
-				newContent.warnings = warnings;
-			}
-
-			return newContent;
-		};
-
-		// Update content when source data changes
-		const updatedContent = combineContent();
-		setContent(updatedContent);
-		setLastUpdated(new Date().toISOString());
-
-		// Update node data
-		updateNodeData(id, {
-			...data,
-			content: updatedContent,
-			lastUpdated: new Date().toISOString(),
-		});
-
-		// Register output data
-		if (approvalStatus === "approved") {
-			registerOutputData({
-				content: updatedContent,
-				approvalStatus,
-				feedback,
-				viewAs,
-				darkMode,
-			});
-		}
-	}, [
-		data.platformData,
-		data.draftData,
-		data.hashtagsData,
-		data.mediaData,
-		id,
-		updateNodeData,
-		registerPlatformData,
-		registerDraftData,
-		registerHashtagsData,
-		registerMediaData,
-		registerOutputData,
-		approvalStatus,
-		feedback,
-		viewAs,
-		darkMode,
-		content,
-	]);
-
-	// Toggle device view
-	const toggleDeviceView = useCallback(() => {
-		const newViewAs = viewAs === "mobile" ? "desktop" : "mobile";
-		setViewAs(newViewAs);
-		updateNodeData(id, { viewAs: newViewAs });
-	}, [viewAs, id, updateNodeData]);
-
-	// Toggle dark mode
-	const toggleDarkMode = useCallback(() => {
-		const newDarkMode = !darkMode;
-		setDarkMode(newDarkMode);
-		updateNodeData(id, { darkMode: newDarkMode });
-	}, [darkMode, id, updateNodeData]);
-
-	// Handle approval
-	const handleApprove = useCallback(() => {
-		setApprovalStatus("approved");
-		updateNodeData(id, { approvalStatus: "approved" });
-
-		// Register output data now that it's approved
-		registerOutputData({
-			content,
-			approvalStatus: "approved",
-			feedback,
-			viewAs,
-			darkMode,
-		});
-	}, [content, feedback, viewAs, darkMode, id, updateNodeData, registerOutputData]);
-
-	// Handle rejection
-	const handleReject = useCallback(() => {
-		setApprovalStatus("rejected");
-		updateNodeData(id, { approvalStatus: "rejected" });
-	}, [id, updateNodeData]);
-
-	// Handle feedback change
-	const handleFeedbackChange = useCallback(
-		(e: React.ChangeEvent<HTMLTextAreaElement>) => {
-			setFeedback(e.target.value);
-			updateNodeData(id, { feedback: e.target.value });
-		},
-		[id, updateNodeData]
-	);
-
-	// Platform-specific preview renderers
-	const renderPlatformPreview = () => {
-		if (!content.platform) {
-			return (
-				<div className="flex flex-col items-center justify-center h-32 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
-					<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-gray-400 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-						<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-						<path
-							strokeLinecap="round"
-							strokeLinejoin="round"
-							strokeWidth={2}
-							d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
-						/>
-					</svg>
-					<p className={`text-gray-500 dark:text-gray-400 text-sm`}>Connect to a Platform Node to preview content</p>
-				</div>
-			);
-		}
-
-		const platform = content.platform.toLowerCase();
-
-		// Twitter Preview
-		if (platform === "twitter") {
-			return (
-				<div className="bg-white rounded-md border border-gray-200 p-3">
-					<div className="flex items-start mb-2">
-						<div className="h-10 w-10 bg-gray-300 rounded-full mr-2 flex-shrink-0"></div>
-						<div>
-							<div className="font-bold text-sm">Username</div>
-							<div className="text-xs text-gray-500">@username</div>
-						</div>
-					</div>
-					<div className="text-sm mb-2 whitespace-pre-wrap">
-						{content.draft ? (content.draft.length > 240 ? content.draft.substring(0, 240) + "..." : content.draft) : "No content"}
-					</div>
-					{content.media && (
-						<div className="rounded-md overflow-hidden mb-2 border border-gray-200">
-							<img
-								src={content.media.urls?.small || content.media.url || "https://via.placeholder.com/300"}
-								alt={content.media.alt_description || "Media preview"}
-								className="max-w-full"
-							/>
-						</div>
-					)}
-					{content.hashtags && content.hashtags.length > 0 && (
-						<div className="text-sm text-blue-500">
-							{content.hashtags.slice(0, 3).map((tag: string, i: number) => (
-								<span key={i} className="mr-1">
-									#{tag}
-								</span>
-							))}
-							{content.hashtags.length > 3 && <span>...</span>}
-						</div>
-					)}
-				</div>
-			);
-		}
-
-		// Instagram Preview
-		if (platform === "instagram") {
-			return (
-				<div className="bg-white rounded-md border border-gray-200">
-					<div className="flex items-center p-2 border-b">
-						<div className="h-8 w-8 bg-gray-300 rounded-full mr-2"></div>
-						<div className="text-sm font-medium">username</div>
-					</div>
-					{content.media ? (
-						<div className="w-full aspect-square bg-gray-100 flex items-center justify-center">
-							<img
-								src={content.media.urls?.small || content.media.url || "https://via.placeholder.com/300"}
-								alt={content.media.alt_description || "Media preview"}
-								className="max-w-full max-h-full object-contain"
-							/>
-						</div>
-					) : (
-						<div className="w-full aspect-square bg-gray-100 flex items-center justify-center text-gray-400 text-sm">No image</div>
-					)}
-					<div className="p-2">
-						<div className="text-sm mb-1">
-							<span className="font-bold mr-1">username</span>
-							<span className="text-sm whitespace-pre-wrap">
-								{content.draft ? (content.draft.length > 100 ? content.draft.substring(0, 100) + "..." : content.draft) : "No caption"}
-							</span>
-						</div>
-						{content.hashtags && content.hashtags.length > 0 && (
-							<div className="text-xs text-blue-500">
-								{content.hashtags.slice(0, 5).map((tag: string, i: number) => (
-									<span key={i} className="mr-1">
-										#{tag}
-									</span>
-								))}
-								{content.hashtags.length > 5 && <span>...</span>}
-							</div>
-						)}
-					</div>
-				</div>
-			);
-		}
-
-		// Facebook Preview
-		if (platform === "facebook") {
-			return (
-				<div className="bg-white rounded-md border border-gray-200 p-3">
-					<div className="flex items-center mb-3">
-						<div className="h-10 w-10 bg-gray-300 rounded-full mr-2"></div>
-						<div>
-							<div className="font-bold text-sm">Page Name</div>
-							<div className="text-xs text-gray-500">
-								Just now · <span>🌎</span>
-							</div>
-						</div>
-					</div>
-					<div className="text-sm mb-3 whitespace-pre-wrap">{content.draft || "No content"}</div>
-					{content.media && (
-						<div className="rounded-md overflow-hidden mb-3 border border-gray-200">
-							<img
-								src={content.media.urls?.small || content.media.url || "https://via.placeholder.com/300"}
-								alt={content.media.alt_description || "Media preview"}
-								className="max-w-full"
-							/>
-						</div>
-					)}
-					{content.hashtags && content.hashtags.length > 0 && (
-						<div className="text-sm text-blue-500">
-							{content.hashtags.slice(0, 3).map((tag: string, i: number) => (
-								<span key={i} className="mr-1">
-									#{tag}
-								</span>
-							))}
-						</div>
-					)}
-					<div className="mt-3 pt-3 border-t border-gray-200 flex text-gray-500 text-sm">
-						<div className="flex-1 flex items-center justify-center">
-							<svg className="w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-								<path
-									strokeLinecap="round"
-									strokeLinejoin="round"
-									strokeWidth={2}
-									d="M14 10h4.764a2 2 0 011.789 2.894l-3.5 7A2 2 0 0115.263 21h-4.017c-.163 0-.326-.02-.485-.06L7 20m7-10V5a2 2 0 00-2-2h-.095c-.5 0-.905.405-.905.905 0 .714-.211 1.412-.608 2.006L7 11v9m7-10h-2M7 20H5a2 2 0 01-2-2v-6a2 2 0 012-2h2.5"
-								/>
-							</svg>
-							Like
-						</div>
-						<div className="flex-1 flex items-center justify-center">
-							<svg className="w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-								<path
-									strokeLinecap="round"
-									strokeLinejoin="round"
-									strokeWidth={2}
-									d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"
-								/>
-							</svg>
-							Comment
-						</div>
-						<div className="flex-1 flex items-center justify-center">
-							<svg className="w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-								<path
-									strokeLinecap="round"
-									strokeLinejoin="round"
-									strokeWidth={2}
-									d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"
-								/>
-							</svg>
-							Share
-						</div>
-					</div>
-				</div>
-			);
-		}
-
-		// LinkedIn Preview
-		if (platform === "linkedin") {
-			return (
-				<div className="bg-white rounded-md border border-gray-200 p-3">
-					<div className="flex items-start mb-3">
-						<div className="h-12 w-12 bg-gray-300 rounded-full mr-2 flex-shrink-0"></div>
-						<div>
-							<div className="font-bold text-sm">Name</div>
-							<div className="text-xs text-gray-500">Title • Just now</div>
-						</div>
-					</div>
-					<div className="text-sm mb-3 whitespace-pre-wrap">{content.draft || "No content"}</div>
-					{content.media && (
-						<div className="rounded-md overflow-hidden mb-3 border border-gray-200">
-							<img
-								src={content.media.urls?.small || content.media.url || "https://via.placeholder.com/300"}
-								alt={content.media.alt_description || "Media preview"}
-								className="max-w-full"
-							/>
-						</div>
-					)}
-					{content.hashtags && content.hashtags.length > 0 && (
-						<div className="text-sm text-blue-500 mb-3">
-							{content.hashtags.slice(0, 3).map((tag: string, i: number) => (
-								<span key={i} className="mr-1">
-									#{tag}
-								</span>
-							))}
-						</div>
-					)}
-					<div className="mt-2 pt-2 border-t border-gray-200 flex text-gray-500 text-sm">
-						<div className="flex-1 flex items-center justify-center">
-							<svg className="w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-								<path
-									strokeLinecap="round"
-									strokeLinejoin="round"
-									strokeWidth={2}
-									d="M14 10h4.764a2 2 0 011.789 2.894l-3.5 7A2 2 0 0115.263 21h-4.017c-.163 0-.326-.02-.485-.06L7 20m7-10V5a2 2 0 00-2-2h-.095c-.5 0-.905.405-.905.905 0 .714-.211 1.412-.608 2.006L7 11v9m7-10h-2M7 20H5a2 2 0 01-2-2v-6a2 2 0 012-2h2.5"
-								/>
-							</svg>
-							Like
-						</div>
-						<div className="flex-1 flex items-center justify-center">
-							<svg className="w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-								<path
-									strokeLinecap="round"
-									strokeLinejoin="round"
-									strokeWidth={2}
-									d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"
-								/>
-							</svg>
-							Comment
-						</div>
-						<div className="flex-1 flex items-center justify-center">
-							<svg className="w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-								<path
-									strokeLinecap="round"
-									strokeLinejoin="round"
-									strokeWidth={2}
-									d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"
-								/>
-							</svg>
-							Share
-						</div>
-					</div>
-				</div>
-			);
-		}
-
-		// TikTok Preview
-		if (platform === "tiktok") {
-			return (
-				<div className="bg-black rounded-md border border-gray-700 text-white">
-					<div className="flex items-start p-2">
-						<div className="h-10 w-10 bg-gray-700 rounded-full mr-2 flex-shrink-0"></div>
-						<div className="flex-1">
-							<div className="font-bold text-sm">username</div>
-							<div className="text-xs text-gray-400">Original sound</div>
-						</div>
-						<div className="text-xs border border-white px-2 py-0.5 rounded-sm">Follow</div>
-					</div>
-					<div className="flex">
-						<div className="w-full aspect-[9/16] bg-gray-900 flex items-center justify-center relative">
-							{content.media ? (
-								<img
-									src={content.media.urls?.small || content.media.url || "https://via.placeholder.com/300"}
-									alt={content.media.alt_description || "Media preview"}
-									className="h-full object-cover"
-								/>
-							) : (
-								<div className="text-gray-400 text-sm">Video preview</div>
-							)}
-							<div className="absolute bottom-0 left-0 right-0 p-2 bg-gradient-to-t from-black to-transparent text-white">
-								<div className="text-sm whitespace-pre-wrap">
-									{content.draft ? (content.draft.length > 100 ? content.draft.substring(0, 100) + "..." : content.draft) : "No caption"}
-								</div>
-								{content.hashtags && content.hashtags.length > 0 && (
-									<div className="text-xs text-white">
-										{content.hashtags.slice(0, 3).map((tag: string, i: number) => (
-											<span key={i} className="mr-1">
-												#{tag}
-											</span>
-										))}
-										{content.hashtags.length > 3 && <span>...</span>}
-									</div>
-								)}
-							</div>
-						</div>
-						<div className="w-12 flex flex-col items-center justify-end p-2 space-y-4">
-							<div className="flex flex-col items-center">
-								<div className="h-7 w-7 bg-gray-700 rounded-full mb-1"></div>
-								<div className="text-xs">15.2K</div>
-							</div>
-							<div className="flex flex-col items-center">
-								<svg className="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-									<path
-										strokeLinecap="round"
-										strokeLinejoin="round"
-										strokeWidth={2}
-										d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"
-									/>
-								</svg>
-								<div className="text-xs">324</div>
-							</div>
-							<div className="flex flex-col items-center">
-								<svg className="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-									<path
-										strokeLinecap="round"
-										strokeLinejoin="round"
-										strokeWidth={2}
-										d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"
-									/>
-								</svg>
-								<div className="text-xs">1.2K</div>
-							</div>
-						</div>
-					</div>
-				</div>
-			);
-		}
-
-		// Default Preview for other platforms
-		return (
-			<div className="bg-white rounded-md border border-gray-200 p-3">
-				<div className="text-sm font-bold mb-2 capitalize">{platform} Preview</div>
-				<div className="text-sm mb-3 whitespace-pre-wrap">{content.draft || "No content"}</div>
-				{content.media && (
-					<div className="rounded-md overflow-hidden mb-3 border border-gray-200">
-						<img
-							src={content.media.urls?.small || content.media.url || "https://via.placeholder.com/300"}
-							alt={content.media.alt_description || "Media preview"}
-							className="max-w-full"
-						/>
-					</div>
-				)}
-				{content.hashtags && content.hashtags.length > 0 && (
-					<div className="text-sm text-blue-500">
-						{content.hashtags.map((tag: string, i: number) => (
-							<span key={i} className="mr-1">
-								#{tag}
-							</span>
-						))}
-					</div>
-				)}
-			</div>
-		);
+	// Platform icons for visualization
+	const platformIcons: Record<string, JSX.Element> = {
+		facebook: (
+			<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="currentColor" viewBox="0 0 24 24">
+				<path d="M9 8h-3v4h3v12h5v-12h3.642l.358-4h-4v-1.667c0-.955.192-1.333 1.115-1.333h2.885v-5h-3.808c-3.596 0-5.192 1.583-5.192 4.615v3.385z" />
+			</svg>
+		),
+		instagram: (
+			<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="currentColor" viewBox="0 0 24 24">
+				<path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z" />
+			</svg>
+		),
+		twitter: (
+			<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="currentColor" viewBox="0 0 24 24">
+				<path d="M24 4.557c-.883.392-1.832.656-2.828.775 1.017-.609 1.798-1.574 2.165-2.724-.951.564-2.005.974-3.127 1.195-.897-.957-2.178-1.555-3.594-1.555-3.179 0-5.515 2.966-4.797 6.045-4.091-.205-7.719-2.165-10.148-5.144-1.29 2.213-.669 5.108 1.523 6.574-.806-.026-1.566-.247-2.229-.616-.054 2.281 1.581 4.415 3.949 4.89-.693.188-1.452.232-2.224.084.626 1.956 2.444 3.379 4.6 3.419-2.07 1.623-4.678 2.348-7.29 2.04 2.179 1.397 4.768 2.212 7.548 2.212 9.142 0 14.307-7.721 13.995-14.646.962-.695 1.797-1.562 2.457-2.549z" />
+			</svg>
+		),
+		linkedin: (
+			<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="currentColor" viewBox="0 0 24 24">
+				<path d="M4.98 3.5c0 1.381-1.11 2.5-2.48 2.5s-2.48-1.119-2.48-2.5c0-1.38 1.11-2.5 2.48-2.5s2.48 1.12 2.48 2.5zm.02 4.5h-5v16h5v-16zm7.982 0h-4.968v16h4.969v-8.399c0-4.67 6.029-5.052 6.029 0v8.399h4.988v-10.131c0-7.88-8.922-7.593-11.018-3.714v-2.155z" />
+			</svg>
+		),
+		tiktok: (
+			<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="currentColor" viewBox="0 0 24 24">
+				<path d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93-.01 2.92.01 5.84-.02 8.75-.08 1.4-.54 2.79-1.35 3.94-1.31 1.92-3.58 3.17-5.91 3.21-1.43.08-2.86-.31-4.08-1.03-2.02-1.19-3.44-3.37-3.65-5.71-.02-.5-.03-1-.01-1.49.18-1.9 1.12-3.72 2.58-4.96 1.66-1.44 3.98-2.13 6.15-1.72.02 1.48-.04 2.96-.04 4.44-.99-.32-2.15-.23-3.02.37-.63.41-1.11 1.04-1.36 1.75-.21.51-.15 1.07-.14 1.61.24 1.64 1.82 3.02 3.5 2.87 1.12-.01 2.19-.66 2.77-1.61.19-.33.4-.67.41-1.06.1-1.79.06-3.57.07-5.36.01-4.03-.01-8.05.02-12.07z" />
+			</svg>
+		),
 	};
 
-	// Render the preview controls
-	const renderControls = () => {
-		return (
-			<div className="flex flex-wrap gap-2 mb-3">
-				{/* Device toggle */}
-				<button onClick={toggleDeviceView} className={`px-2 py-1 text-xs rounded-md ${viewAs === "mobile" ? "bg-blue-100 text-blue-700" : "bg-gray-100 text-gray-700"}`}>
-					<span className="flex items-center">
-						<svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-							<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
-						</svg>
-						{viewAs === "mobile" ? "Mobile" : "Desktop"}
-					</span>
-				</button>
-
-				{/* Dark mode toggle */}
-				<button onClick={toggleDarkMode} className={`px-2 py-1 text-xs rounded-md ${darkMode ? "bg-gray-800 text-white" : "bg-gray-100 text-gray-700"}`}>
-					<span className="flex items-center">
-						<svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-							<path
-								strokeLinecap="round"
-								strokeLinejoin="round"
-								strokeWidth={2}
-								d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"
-							/>
-						</svg>
-						{darkMode ? "Dark Mode" : "Light Mode"}
-					</span>
-				</button>
-			</div>
-		);
-	};
-
-	// Get approval status badge
-	const getApprovalBadge = () => {
-		if (!approvalStatus) return null;
-
-		const badgeClasses = {
-			pending: "bg-yellow-100 text-yellow-800",
-			approved: "bg-green-100 text-green-800",
-			rejected: "bg-red-100 text-red-800",
-		};
-
-		return (
-			<div className={`absolute top-2 right-2 text-xs px-2 py-0.5 rounded-full ${badgeClasses[approvalStatus]}`}>
-				{approvalStatus.charAt(0).toUpperCase() + approvalStatus.slice(1)}
-			</div>
-		);
-	};
-
-	// Render node content
-	const renderNodeContent = () => {
-		return (
-			<div className={`relative ${darkMode ? "bg-gray-900 text-white" : "bg-gray-50"}`} style={{ minHeight: "100px", maxHeight: "400px", overflow: "auto" }}>
-				{/* Approval Status Badge */}
-				{getApprovalBadge()}
-
-				<div className="space-y-2 p-3">
-					{/* Platform name and preview controls */}
-					{content.platform ? (
-						<>
-							<div className="flex justify-between items-center">
-								<span className="text-sm font-medium capitalize">{content.platform} Preview</span>
-								{lastUpdated && <span className="text-xs text-gray-500 dark:text-gray-400">Updated: {new Date(lastUpdated).toLocaleTimeString()}</span>}
-							</div>
-
-							{/* Preview controls */}
-							{renderControls()}
-
-							{/* Platform-specific preview */}
-							<div className={viewAs === "mobile" ? "max-w-xs mx-auto" : "w-full"}>{renderPlatformPreview()}</div>
-
-							{/* Warnings */}
-							{content.warnings && content.warnings.length > 0 && (
-								<div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded-md">
-									<h4 className="text-xs font-medium text-yellow-800 mb-1">Warnings:</h4>
-									<ul className="text-xs text-yellow-700 space-y-1 list-disc pl-4">
-										{content.warnings.map((warning: string, index: number) => (
-											<li key={index}>{warning}</li>
-										))}
-									</ul>
-								</div>
-							)}
-
-							{/* Approval controls */}
-							<div className="mt-3 pt-2 border-t border-gray-200 dark:border-gray-700">
-								<div className="flex justify-between items-center mb-2">
-									<span className="text-xs font-medium">Approval Status:</span>
-									<div className="flex space-x-2">
-										<button
-											onClick={handleApprove}
-											className={`px-2 py-1 text-xs rounded-md ${
-												approvalStatus === "approved"
-													? "bg-green-100 text-green-700 font-medium"
-													: "bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300"
-											}`}>
-											Approve
-										</button>
-										<button
-											onClick={handleReject}
-											className={`px-2 py-1 text-xs rounded-md ${
-												approvalStatus === "rejected"
-													? "bg-red-100 text-red-700 font-medium"
-													: "bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300"
-											}`}>
-											Reject
-										</button>
-									</div>
-								</div>
-
-								{/* Feedback textarea */}
-								<textarea
-									value={feedback}
-									onChange={handleFeedbackChange}
-									placeholder="Add feedback or revision notes here..."
-									className={`w-full p-2 text-xs border rounded-md ${
-										darkMode ? "bg-gray-800 border-gray-700 text-white" : "bg-white border-gray-300 text-gray-700"
-									}`}
-									rows={2}
-								/>
-							</div>
-						</>
-					) : (
-						<div className="flex flex-col items-center justify-center h-32 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
-							<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-gray-400 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-								<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-								<path
-									strokeLinecap="round"
-									strokeLinejoin="round"
-									strokeWidth={2}
-									d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
-								/>
-							</svg>
-							<p className={`text-gray-500 dark:text-gray-400 text-sm`}>Connect to a Platform Node to preview content</p>
-						</div>
-					)}
-				</div>
-			</div>
-		);
-	};
-
-	// Preview icon
-	const previewIcon = (
+	// Node icon
+	const icon = (
 		<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
 			<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
 			<path
@@ -726,10 +75,386 @@ const PreviewNode: React.FC<NodeProps> = (props) => {
 		</svg>
 	);
 
+	// Handle approve action
+	const handleApprove = () => {
+		// Create a data object with the complete approved content
+		const approvedContent = {
+			platform,
+			content: draftContent,
+			media: selectedImage,
+			hashtags,
+			audience: {
+				ageRange,
+				interests,
+				locations,
+			},
+			approvedAt: new Date().toISOString(),
+		};
+
+		// Update node data
+		if (data.onSaveData) {
+			data.onSaveData({
+				approvalStatus: "approved",
+				lastUpdated: new Date().toISOString(),
+				content: approvedContent,
+			});
+		}
+	};
+
+	// Handle reject action
+	const handleReject = () => {
+		if (data.onSaveData) {
+			data.onSaveData({
+				approvalStatus: "rejected",
+				lastUpdated: new Date().toISOString(),
+				feedback: data.feedback || "",
+			});
+		}
+	};
+
+	// Handle feedback change
+	const updateFeedback = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+		if (data.onSaveData) {
+			data.onSaveData({
+				feedback: e.target.value,
+			});
+		}
+	};
+
+	// Toggle view mode (mobile/desktop)
+	const toggleViewMode = () => {
+		if (data.onSaveData) {
+			data.onSaveData({
+				viewAs: data.viewAs === "mobile" ? "desktop" : "mobile",
+			});
+		}
+	};
+
+	// Toggle theme (light/dark)
+	const toggleTheme = () => {
+		if (data.onSaveData) {
+			data.onSaveData({
+				darkMode: !data.darkMode,
+			});
+		}
+	};
+
+	// Define input handles with proper positioning
+	const inputHandles = [
+		{ id: "platform", position: Position.Top, style: { left: "20%" } },
+		{ id: "draft", position: Position.Top, style: { left: "40%" } },
+		{ id: "media", position: Position.Top, style: { left: "60%" } },
+		{ id: "hashtags", position: Position.Top, style: { left: "80%" } },
+		{ id: "audience", position: Position.Left },
+	];
+
 	return (
-		<BaseNode {...props} title="Content Preview" color="#0369a1" icon={previewIcon}>
-			{renderNodeContent()}
-		</BaseNode>
+		<StyledNode
+			{...props}
+			title="Content Preview"
+			icon={icon}
+			color="media-primary"
+			borderColor="media-border"
+			handles={{
+				inputs: inputHandles,
+				outputs: [{ id: "approved", position: Position.Bottom }],
+			}}>
+			<div className="text-sm">
+				{canShowPreview ? (
+					<div>
+						{/* Preview controls */}
+						<div className="flex justify-between items-center mb-2">
+							<div className="font-medium text-gray-700">Preview:</div>
+							<div className="flex space-x-2">
+								{/* Device toggle */}
+								<button
+									onClick={toggleViewMode}
+									className="text-xs p-1 rounded border border-gray-300 bg-white hover:bg-gray-50"
+									title={`View as ${data.viewAs === "mobile" ? "Desktop" : "Mobile"}`}>
+									{data.viewAs === "mobile" ? (
+										<svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+											<path
+												strokeLinecap="round"
+												strokeLinejoin="round"
+												strokeWidth={2}
+												d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"
+											/>
+										</svg>
+									) : (
+										<svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+											<path
+												strokeLinecap="round"
+												strokeLinejoin="round"
+												strokeWidth={2}
+												d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
+											/>
+										</svg>
+									)}
+								</button>
+
+								{/* Theme toggle */}
+								<button
+									onClick={toggleTheme}
+									className="text-xs p-1 rounded border border-gray-300 bg-white hover:bg-gray-50"
+									title={`${data.darkMode ? "Light" : "Dark"} Mode`}>
+									{data.darkMode ? (
+										<svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+											<path
+												strokeLinecap="round"
+												strokeLinejoin="round"
+												strokeWidth={2}
+												d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"
+											/>
+										</svg>
+									) : (
+										<svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+											<path
+												strokeLinecap="round"
+												strokeLinejoin="round"
+												strokeWidth={2}
+												d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"
+											/>
+										</svg>
+									)}
+								</button>
+
+								{/* Expand/collapse toggle */}
+								<button
+									onClick={() => setIsPreviewExpanded(!isPreviewExpanded)}
+									className="text-xs p-1 rounded border border-gray-300 bg-white hover:bg-gray-50"
+									title={isPreviewExpanded ? "Collapse" : "Expand"}>
+									{isPreviewExpanded ? (
+										<svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+											<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+										</svg>
+									) : (
+										<svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+											<path
+												strokeLinecap="round"
+												strokeLinejoin="round"
+												strokeWidth={2}
+												d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5v-4m0 4h-4m4 0l-5-5"
+											/>
+										</svg>
+									)}
+								</button>
+							</div>
+						</div>
+
+						{/* Platform header */}
+						<div
+							className={`flex items-center p-2 rounded-t ${data.darkMode ? "bg-gray-800 text-white" : "bg-gray-100"}`}
+							style={{
+								width: data.viewAs === "mobile" ? "80%" : "100%",
+								margin: "0 auto",
+							}}>
+							<div className="mr-2 text-blue-500">{platformIcons[platform]}</div>
+							<div className="font-medium capitalize">{platform}</div>
+						</div>
+
+						{/* Preview content */}
+						<div
+							className={`border ${data.darkMode ? "bg-gray-900 text-gray-100 border-gray-700" : "bg-white border-gray-200"} rounded-b overflow-hidden mb-3`}
+							style={{
+								width: data.viewAs === "mobile" ? "80%" : "100%",
+								margin: "0 auto",
+								maxHeight: isPreviewExpanded ? "none" : "120px",
+							}}>
+							{/* Media preview */}
+							{selectedImage && (
+								<div className="w-full h-24 bg-gray-200 flex items-center justify-center overflow-hidden">
+									{selectedImage.urls ? (
+										<img src={selectedImage.urls.small} alt="Content preview" className="w-full h-full object-cover" />
+									) : (
+										<div className="flex items-center justify-center h-full w-full bg-gray-100">
+											<svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+												<path
+													strokeLinecap="round"
+													strokeLinejoin="round"
+													strokeWidth={2}
+													d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+												/>
+											</svg>
+										</div>
+									)}
+								</div>
+							)}
+
+							{/* Content text */}
+							<div className="p-3">
+								<p className={`text-sm ${data.darkMode ? "text-gray-200" : "text-gray-700"}`}>
+									{draftContent.length > 100 && !isPreviewExpanded ? draftContent.substring(0, 100) + "..." : draftContent}
+								</p>
+
+								{/* Hashtags */}
+								{hashtags.length > 0 && (
+									<div className="mt-2 flex flex-wrap gap-1">
+										{hashtags.map(
+											(
+												tag:
+													| string
+													| number
+													| boolean
+													| React.ReactElement<any, string | React.JSXElementConstructor<any>>
+													| Iterable<React.ReactNode>
+													| React.ReactPortal
+													| null
+													| undefined,
+												i: React.Key | null | undefined
+											) => (
+												<span key={i} className={`text-xs px-2 py-1 rounded ${data.darkMode ? "bg-blue-900 text-blue-300" : "bg-blue-50 text-blue-600"}`}>
+													#{tag}
+												</span>
+											)
+										)}
+									</div>
+								)}
+							</div>
+						</div>
+
+						{/* Audience targeting info */}
+						{(interests.length > 0 || locations.length > 0) && (
+							<div className="mb-3 text-xs bg-gray-50 p-2 rounded border border-gray-200">
+								<div className="font-medium text-gray-700 mb-1">Audience Targeting:</div>
+								<div className="flex flex-wrap gap-1">
+									{ageRange && (
+										<span className="bg-green-50 text-green-700 px-2 py-0.5 rounded">
+											Age: {ageRange.min}-{ageRange.max}
+										</span>
+									)}
+									{locations.length > 0 && <span className="bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded">{locations.length} locations</span>}
+									{interests.length > 0 && <span className="bg-purple-50 text-purple-700 px-2 py-0.5 rounded">{interests.length} interests</span>}
+								</div>
+							</div>
+						)}
+
+						{/* Approval status and actions */}
+						<div className="flex flex-col">
+							{data.approvalStatus ? (
+								<div
+									className={`mb-2 text-xs px-3 py-1.5 rounded-md ${
+										data.approvalStatus === "approved" ? "bg-green-50 text-green-700 border border-green-200" : "bg-red-50 text-red-700 border border-red-200"
+									}`}>
+									<div className="flex items-center">
+										{data.approvalStatus === "approved" ? (
+											<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" viewBox="0 0 20 20" fill="currentColor">
+												<path
+													fillRule="evenodd"
+													d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+													clipRule="evenodd"
+												/>
+											</svg>
+										) : (
+											<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" viewBox="0 0 20 20" fill="currentColor">
+												<path
+													fillRule="evenodd"
+													d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
+													clipRule="evenodd"
+												/>
+											</svg>
+										)}
+										<span className="font-medium capitalize">{data.approvalStatus}</span>
+										{data.lastUpdated && <span className="ml-1 text-gray-500"> • {new Date(data.lastUpdated).toLocaleTimeString()}</span>}
+									</div>
+								</div>
+							) : (
+								<div className="flex space-x-2 mb-2">
+									<button onClick={handleApprove} className="flex-1 bg-green-50 hover:bg-green-100 text-green-600 text-xs py-1 rounded border border-green-200">
+										Approve
+									</button>
+									<button onClick={handleReject} className="flex-1 bg-red-50 hover:bg-red-100 text-red-600 text-xs py-1 rounded border border-red-200">
+										Reject
+									</button>
+								</div>
+							)}
+
+							{/* Feedback input or display */}
+							{data.approvalStatus === "rejected" && data.feedback ? (
+								<div className="mb-2 text-xs bg-gray-50 p-2 rounded border border-gray-200">
+									<div className="font-medium text-gray-700 mb-1">Feedback:</div>
+									<p className="text-gray-600">{data.feedback}</p>
+								</div>
+							) : (
+								!data.approvalStatus && (
+									<textarea
+										placeholder="Add feedback here..."
+										value={data.feedback || ""}
+										onChange={updateFeedback}
+										className="w-full text-xs p-2 border border-gray-200 rounded h-10 focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50"></textarea>
+								)
+							)}
+						</div>
+					</div>
+				) : (
+					<div>
+						{/* Empty state - shows instructions */}
+						<div className="font-medium text-gray-700 mb-2">Instructions:</div>
+						<div className="flex bg-gray-50 p-3 rounded border border-gray-200 text-gray-600">
+							<div className="mr-2 text-blue-500">
+								<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+									<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+								</svg>
+							</div>
+							<div className="text-sm flex-1">
+								<p>
+									Connect to a <strong>Platform</strong> node and <strong>Draft</strong> node to preview your content.
+								</p>
+								<p className="mt-1 text-xs text-gray-500">Optional: Add media, hashtags, and audience targeting.</p>
+							</div>
+						</div>
+
+						{/* Shows what's connected so far */}
+						{data.sourceInfo && Object.keys(data.sourceInfo).length > 0 && (
+							<div className="mt-3 bg-blue-50 p-2 rounded text-xs">
+								<div className="font-medium text-gray-700 mb-1">Connected inputs:</div>
+								<ul className="text-blue-800">
+									{Object.entries(data.sourceInfo).map(([key, value]) => {
+										const nodeArray = value as any[];
+										if (nodeArray && nodeArray.length > 0) {
+											return (
+												<li key={key} className="flex items-center py-0.5">
+													<svg
+														xmlns="http://www.w3.org/2000/svg"
+														className="h-3 w-3 mr-1 text-green-500"
+														fill="none"
+														viewBox="0 0 24 24"
+														stroke="currentColor">
+														<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+													</svg>
+													<span className="capitalize">{key}</span>
+												</li>
+											);
+										}
+										return null;
+									})}
+								</ul>
+
+								{/* Shows what's still needed */}
+								<div className="mt-2 font-medium text-gray-700">Still needed:</div>
+								<ul className="text-red-600">
+									{!platform && (
+										<li className="flex items-center py-0.5">
+											<svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+												<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+											</svg>
+											<span>Platform</span>
+										</li>
+									)}
+									{!draftContent && (
+										<li className="flex items-center py-0.5">
+											<svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+												<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+											</svg>
+											<span>Draft Content</span>
+										</li>
+									)}
+								</ul>
+							</div>
+						)}
+					</div>
+				)}
+			</div>
+		</StyledNode>
 	);
 };
 
